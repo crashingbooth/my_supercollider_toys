@@ -103,7 +103,7 @@ L_system {
 			},
 			{   oct =  Array.fill(num_lines, { 0 } ) }
 		);
-	// make stuff:
+	// build sequences:
 		lines = Array.new(num_lines);
 		num_lines.do { lines.add([])};
 		num_segments.do { |seg|
@@ -135,13 +135,13 @@ L_system {
 			};
 
 			if (with_rests,
-				{ postln("rests added");
+				{
 					num_lines.do {|i|
 					// add one beat to last value
 						lines[i].wrapAt(-1)[1] = lines[i].wrapAt(-1)[1] + 4;
 					lines[i] = lines[i].add([\rest, 4]) } } );
 		};
-		postln("got this far");
+
 
 		pbs = Array.fill (num_lines,
 			{ |i|
@@ -154,13 +154,6 @@ L_system {
 					\stretch, stretch,
 					\scale, scale,
 				).play;
-				/*filename = "/Users/jeff/Documents/SuperColliderWorkspace/testMIDI" ++ i ++ ".mid";
-				midifile = SimpleMIDIFile( filename );
-				midifile.init1( 0, 120, "4/4" );
-				midifile.fromPattern(pbs[i]);
-
-				midifile.write;
-				midifile.plot;*/
 		});
 		^lines;
 	}
