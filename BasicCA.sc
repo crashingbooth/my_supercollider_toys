@@ -4,7 +4,7 @@ BasicCA {
 	This superclass will handle conversion to patterns
 	*/
 
-	var <>width, <>rules, <>prevState, <>nextState, <>started, <>history, <>midiout, <>windowSize, <>windowPos;
+	var <>width, <>rules, <>prevState, <>nextState, <>started, <>history, <>midiout, <>windowSize, <>windowPos, <>window;
 
 	*new {|width, rules, firstState, midiout|
 		^super.new.init(width, rules, firstState, midiout)
@@ -23,6 +23,7 @@ BasicCA {
 		this.history = [this.prevState];
 		this.windowSize = this.width;
 		this.windowPos = 0;
+		this.window = "";
 		// this.rules = this.createRules(rules);
 	}
 
@@ -55,8 +56,13 @@ BasicCA {
 			{size = this.width - pos; "trimmed window".postln; });
 		this.windowPos = pos;
 		this.windowSize = size;
-
-
+	}
+	shiftWindow { |dist|
+		var newStart, newEnd;
+		newStart = this.windowPos + dist;
+		newEnd = this.windowPos + this.windowSize + dist;
+		if (newStart < 0, {newStart = 0});
+		this.setWindow(this.windowSize, newStart, center:false);
 	}
 
 	displayCurrent {
@@ -72,6 +78,8 @@ BasicCA {
 	}
 	playNext {
 		var patternFeed = [], pbs;
+		// this.displayCurrent();
+		this.windowVals();
 		this.displayCurrent();
 		this.windowSize.do { |i|
 			if (this.nextState[this.windowPos + i].asString != this.prevState[this.windowPos + i].asString,
@@ -105,10 +113,13 @@ BasicCA {
 
 	}
 
-	playThruHelper { |tempo|
-		this.playNext();
-		tempo;
+	windowVals {
+		var win;
+		this.windowSize.do {|i| win = win ++ this.nextState[i + this.windowPos].asString};
+		this.window = win.copy;
+		// this.window.postln;
 	}
+
 	playThru { |tempo = 1|
 		var r;
 		r = Routine.new({loop {this.playNext(); tempo.yield} }).play;
