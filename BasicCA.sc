@@ -22,6 +22,7 @@ BasicCA {
 		this.started = false;
 		this.history = [this.prevState];
 		this.windowSize = this.width;
+		this.windowPos = 0;
 		// this.rules = this.createRules(rules);
 	}
 
@@ -44,19 +45,45 @@ BasicCA {
 		this.width.do { res = res ++ 2.rand.asString };
 		^res;
 	}
+
+	setWindow { |size, pos, center = true|
+		if (size > this.width, {size = this.width });
+		if (center,
+			{ pos = ((this.width - size)/2).asInteger});
+		// make sure everything fit, else trim window
+		if ((pos + size) > this.width,
+			{size = this.width - pos; "trimmed window".postln; });
+		this.windowPos = pos;
+		this.windowSize = size;
+
+
+	}
+
+	displayCurrent {
+		// called by playNext, shows complete state, with window bracketted off
+		var outputString = "";
+		this.nextState.do { |val, i|
+			if (i == this.windowPos, {outputString = outputString ++ "["});
+			outputString = outputString ++ val.asString;
+			if (i == (this.windowPos + this.windowSize - 1), {outputString = outputString ++ "]"});
+		};
+		outputString.postln;
+
+	}
 	playNext {
 		var patternFeed = [], pbs;
-		this.nextState.do { |val, i|
-			if (val.asString != this.prevState[i].asString,
+		this.displayCurrent();
+		this.windowSize.do { |i|
+			if (this.nextState[this.windowPos + i].asString != this.prevState[this.windowPos + i].asString,
 				{
-					switch (val.asString,
+					switch (this.nextState[this.windowPos + i].asString,
 						"0", {patternFeed = patternFeed.add([i,\noteOff])},
 						"1", {patternFeed = patternFeed.add([i,\noteOn])}
 					);
 				}
 			);
 		};
-		patternFeed.do.postln;
+		// patternFeed.do.postln;
 		patternFeed.do {|feed, i|
 			var pb;
 			pb = Pbind (
@@ -71,10 +98,24 @@ BasicCA {
 			);
 			pbs = pbs.add(pb);
 		};
-		Ppar(pbs).play;
+		if (pbs != nil, {Ppar(pbs).play;});
+
 		this.getNext;
 
 
 	}
 
+	playThruHelper { |tempo|
+		this.playNext();
+		tempo;
+	}
+	playThru { |tempo = 1|
+		var r;
+		r = Routine.new({loop {this.playNext(); tempo.yield} }).play;
+	}
+
 }
+/* TODO
+- create re-init, for when resetting stuff
+- gen single cell, gen symetrical random (include this in sublcass args?)
+*/
