@@ -1,15 +1,16 @@
 Rule109Player {
-	var <>ca, <>history, <>hypotheses;
+	var <>ca, <>history, <>hypotheses, <>repThresh;
 
-	*new { |gridWidth, windowSize, midiout|
-	^super.new.init(gridWidth, windowSize, midiout);
+	*new { |gridWidth, windowSize, repThresh,midiout|
+	^super.new.init(gridWidth, windowSize, repThresh, midiout);
 	}
 
-	init { |gridWidth, windowSize, midiout|
+	init { |gridWidth, windowSize, repThresh = 4, midiout|
 		this.ca = ElemCA(gridWidth, 109, nil, midiout);
 		this.ca.setWindow(windowSize, 0, false);
 		this.ca.windowVals();
 		this.ca.window.postln;
+		this.repThresh = repThresh;
 		this.history = [this.ca.window];
 		// this.history.postln;
 	}
@@ -40,8 +41,8 @@ Rule109Player {
 			target = curLineNum - (df*reps);
 			if (history[target] != current,
 				{remove = remove.add(i)},
-				{   if ((target - hypo[0]) == df, {this.hypotheses[i][2] = this.hypotheses[i][2] + 1});
-					if (this.hypotheses[i][2] == 4, { this.moveAndReset(); remove = []});
+				{   if ((target - hypo[0]) == (df -1), {this.hypotheses[i][2] = this.hypotheses[i][2] + 1});
+					if (this.hypotheses[i][2] == this.repThresh, { this.moveAndReset(); remove = []});
 			} );
 
 		};
