@@ -4,7 +4,7 @@ BasicCA {
 	This superclass will handle conversion to patterns
 	*/
 
-	var <>width, <>rules, <>prevState, <>nextState, <>started, <>history, <>midiout, <>windowSize, <>windowPos, <>window;
+	var <>width, <>rules, <>prevState, <>nextState, <>started, <>history, <>midiout, <>windowSize, <>windowPos, <>window, <>scale, <>legato, <>tempo;
 
 	*new {|width, rules, firstState, midiout|
 		^super.new.init(width, rules, firstState, midiout)
@@ -23,7 +23,10 @@ BasicCA {
 		this.history = [this.prevState];
 		this.windowSize = this.width;
 		this.windowPos = 0;
+		this.scale = Scale.minorPentatonic;
 		this.window = "";
+		this.legato = true;
+		this.tempo = 1;
 		// this.rules = this.createRules(rules);
 	}
 
@@ -56,6 +59,8 @@ BasicCA {
 			{size = this.width - pos; "trimmed window".postln; });
 		this.windowPos = pos;
 		this.windowSize = size;
+		// TempoClock.default.clear;
+		this.started = false;
 	}
 	shiftWindow { |dist|
 		var newStart, newEnd;
@@ -79,18 +84,31 @@ BasicCA {
 	playNext {
 		var patternFeed = [], pbs;
 		// this.displayCurrent();
+		// TempoClock.default.clear;
 		this.windowVals();
 		this.displayCurrent();
-		this.windowSize.do { |i|
-			if (this.nextState[this.windowPos + i].asString != this.prevState[this.windowPos + i].asString,
-				{
+		if (this.started,
+			{ this.windowSize.do { |i|
+				if (this.nextState[this.windowPos + i].asString != this.prevState[this.windowPos + i].asString,
+					{
+						switch (this.nextState[this.windowPos + i].asString,
+							"0", {patternFeed = patternFeed.add([i,\noteOff])},
+							"1", {patternFeed = patternFeed.add([i,\noteOn])}
+						);
+					}
+				);
+			}; },
+			{   // this mode will play every note everytime (nothing held), if this.legato set false, it will
+				// never switch out of this mode
+				this.windowSize.do { |i|
 					switch (this.nextState[this.windowPos + i].asString,
 						"0", {patternFeed = patternFeed.add([i,\noteOff])},
-						"1", {patternFeed = patternFeed.add([i,\noteOn])}
-					);
-				}
-			);
-		};
+						"1", {patternFeed = patternFeed.add([i,\noteOn])} );
+					};
+				if (this.legato , { this.started = true; } );
+
+			}
+		);
 		// patternFeed.do.postln;
 		patternFeed.do {|feed, i|
 			var pb;
@@ -101,8 +119,8 @@ BasicCA {
 				\degree, Pseq([feed[0]]),
 				\chan, 0,
 				\root, 0,
-				\dur, 100,
-				\scale, Scale.iwato,
+				\dur, this.tempo * 2,
+				\scale, this.scale,
 			);
 			pbs = pbs.add(pb);
 		};
@@ -122,6 +140,7 @@ BasicCA {
 
 	playThru { |tempo = 1|
 		var r;
+		this.tempo = tempo;
 		r = Routine.new({loop {this.playNext(); tempo.yield} }).play;
 	}
 
