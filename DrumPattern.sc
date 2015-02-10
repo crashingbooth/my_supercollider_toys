@@ -36,7 +36,7 @@ DrumPattern {
 			this.drumArray[index] = this.drumArray[index].add([event[0], this.accentDict[accent]]);
 			totalLength = totalLength + event[0];
 		};
-		if (totalLength != this.length, {["part length does not match obj length:", totalLength, this.length].postln});
+		if (totalLength != this.length, {["part length does not match obj length:", totalLength, this.length,"drumlist", drumList].postln });
 	}
 	getMultipleDrums { |drumParts|
 		drumParts.do { |drumLine|
@@ -52,10 +52,10 @@ DrumPlayer {
 		^super.new.init (midiout, stretch) }
 	init { |midiout, stretch = 0.5|
 		this.midiout = midiout;
-		this.stretch = 0.5;
+		this.stretch = 0.45;
 
 		this.playRandom = false;
-		this.midiNumIndex = [12, 14, 27, 22, 18, 13]; //kick, snare, ride, open, closed, rim
+		this.midiNumIndex = [36, 38, 51, 46, 42, 37]; //kick, snare, ride, open, closed, rim
 		this.addToLibrary();
 		this.currentPattern;
 	}
@@ -86,7 +86,7 @@ DrumPlayer {
 				\type, \midi,
 				\midiout, this.midiout,
 				[\midinote, \dur, \raw_amp], Pn(Plazy{Pseq(this.processPatternAt(i))}),
-				\amp, Pkey(\raw_amp) + Pwhite(-0.05, 0.05),
+				\amp, Pkey(\raw_amp) + Pwhite(-0.08, 0.05),
 				\chan, 1,
 				\stretch, this.stretch,
 				\lag, Pwhite(-0.03, 0.03)
@@ -95,25 +95,52 @@ DrumPlayer {
 	}
 
 	addToLibrary{
+		// basic
 		this.library = this.library.add(DrumPattern.new(4,[
 			["kick", [[2/3,\s],[1/3],[1,\r],[2/3,\s],[1/3],[1,\r]]],
-		    ["snare", [[1,\r],[2/3,\s],[1/3],[1,\r],[2/3,\s],[1/3]]]
+			["snare", [[1,\r],[2/3,\s],[1/3],[1,\r],[2/3,\s],[1/3]]]
 		] ) );
-		this.library = this.library.add(DrumPattern.new(4,[
+		/*this.library = this.library.add(DrumPattern.new(4,[
 			["kick", [[2/3,\r],[1/3],[2/3,\r],[1/3],[2/3,\r],[1/3],[2/3,\r],[1/3]]],
 		    ["snare", [[1,\r],[1,\s],[1,\r],[1,\s]]]
-		] ) );
+		] ) );*/
 		this.library = this.library.add(DrumPattern.new(4,[
 			["snare", [[2 + (1/3),\r],[1/3,\s],[1/3],[1,\r]]]
 		] ) );
-		this.library = this.library.add(DrumPattern.new(4,[
+		/*this.library = this.library.add(DrumPattern.new(4,[
 			["snare", [[1/3],[1/3],[(1/3),\r],[1,\r],[1/3],[1/3],[(1/3),\r],[1,\r]]],
 			["kick", [[2/3,\r],[1/3],[1,\r],[2/3,\r],[1/3],[1,\r]]]
-		] ) );
+		] ) );*/
 		this.library = this.library.add(DrumPattern.new(4,[
 			["snare", [[2/3,\r],[1/3],[1/3,\r],[1/3],[1/3],[1,\r],[1,\s]]],
 			["kick", [[2,\r],[2/3,\r],[1/3],[1,\r]]]
 		] ) );
+		// comping
+		this.library = this.library.add(DrumPattern.new(4,[
+			["kick", [[(1+(1/3))], [(1+(1/3))],[(1+(1/3))]]],
+			["snare", [[2/3], [1 +(1/3)], [1 +(1/3)], [2/3]]]
+		] ) );
+		this.library = this.library.add(DrumPattern.new(4,[
+			["kick", [[2],[2]]],
+			["snare", [[2 +(1/3),\r], [1/3],[1 +(1/3)]]]
+		] ) );
+		this.library = this.library.add(DrumPattern.new(4,[
+			["kick", [[(2/3),\r], [1], [1], [1],[(1/3)]]],
+			["snare", [[1/3],[1 +(2/3)],[1/3],[1 +(2/3)] ]]
+		] ) );
+	/*	this.library = this.library.add(DrumPattern.new(4,[
+			["kick", [[(2/3),\r], [1 +(1/3)], [2/3], [1 +(1/3)]]],
+			["snare", [[1,\r],[1 +(1/3),\s],[2/3],[1,\s] ]]
+		] ) );*/
+		this.library = this.library.add(DrumPattern.new(4,[
+			["kick", [[1/3,\r],[2/3],[2/3,\s],[2/3],[2/3],[2/3,\s],[1/3]]],
+			["snare", [[2/3],[2/3],[2/3],[2/3],[2/3],[2/3]]]
+		] ) );
+		this.library = this.library.add(DrumPattern.new(4,[
+			["kick", [[(1/3), \r],[2],[1 +(2/3)]]],
+			["snare", [[1 +(1/3),\r], [2], [1/3,\s],[1/3]]]
+		] ) );
+
 
 
 	}
