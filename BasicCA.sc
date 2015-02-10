@@ -4,7 +4,11 @@ BasicCA {
 	This superclass will handle conversion to patterns
 	*/
 
+<<<<<<< HEAD
 	var <>width, <>prevState, <>nextState, <>started, <>history, <>midiout, <>windowSize, <>windowPos, <>window, <>scale, <>legato, <>tempo, <>cleanDisplay;
+=======
+	var <>width, <>rules, <>prevState, <>nextState, <>started, <>history, <>midiout, <>windowSize, <>windowPos, <>window;
+>>>>>>> parent of f37cf9a... trying to use events
 
 	*new {|width, firstState, midiout|
 		^super.new.init(width, firstState, midiout)
@@ -23,11 +27,15 @@ BasicCA {
 		this.history = [this.prevState];
 		this.windowSize = 7;  // by default; set with this.setWindow
 		this.windowPos = 0;
-		this.scale = Scale.minorPentatonic;
 		this.window = "";
+<<<<<<< HEAD
 		this.cleanDisplay = false;
 		this.legato = true;
 		this.tempo = 1;
+=======
+		// this.rules = this.createRules(rules);
+	}
+>>>>>>> parent of f37cf9a... trying to use events
 
 	}
 	getNext {
@@ -62,7 +70,10 @@ BasicCA {
 			{size = this.width - pos; "trimmed window".postln; });
 		this.windowPos = pos;
 		this.windowSize = size;
+<<<<<<< HEAD
 		this.started = false;
+=======
+>>>>>>> parent of f37cf9a... trying to use events
 	}
 	shiftWindow { |dist|
 		var newStart, newEnd;
@@ -86,30 +97,47 @@ BasicCA {
 	}
 	playNext {
 		var patternFeed = [], pbs;
+<<<<<<< HEAD
+=======
+		// this.displayCurrent();
+>>>>>>> parent of f37cf9a... trying to use events
 		this.windowVals();
 		this.displayCurrent();
-		if (this.started,
-			{ this.windowSize.do { |i|
-				if (this.nextState[this.windowPos + i].asString != this.prevState[this.windowPos + i].asString,
-					{
-						switch (this.nextState[this.windowPos + i].asString,
-							"0", {patternFeed = patternFeed.add([i,\noteOff])},
-							"1", {patternFeed = patternFeed.add([i,\noteOn])}
-						);
-					}
-				);
-			}; },
-			{   // this mode will play every note everytime (nothing held), if this.legato set false, it will
-				// never switch out of this mode
-				this.windowSize.do { |i|
+		this.windowSize.do { |i|
+			if (this.nextState[this.windowPos + i].asString != this.prevState[this.windowPos + i].asString,
+				{
 					switch (this.nextState[this.windowPos + i].asString,
 						"0", {patternFeed = patternFeed.add([i,\noteOff])},
+<<<<<<< HEAD
 						"1", {patternFeed = patternFeed.add([i,\noteOn])} );
 					};
 				if (this.legato , { this.started = true; } );
 
 			}
 		);
+=======
+						"1", {patternFeed = patternFeed.add([i,\noteOn])}
+					);
+				}
+			);
+		};
+		// patternFeed.do.postln;
+		patternFeed.do {|feed, i|
+			var pb;
+			pb = Pbind (
+				\type, \midi,
+				\midiout, this.midiout,
+				\midicmd, feed[1],
+				\degree, Pseq([feed[0]]),
+				\chan, 0,
+				\root, 0,
+				\dur, 100,
+				\scale, Scale.iwato,
+			);
+			pbs = pbs.add(pb);
+		};
+		if (pbs != nil, {Ppar(pbs).play;});
+>>>>>>> parent of f37cf9a... trying to use events
 
 		this.getNext;
 		^patternFeed;
@@ -124,6 +152,7 @@ BasicCA {
 	}
 
 	playThru { |tempo = 1|
+<<<<<<< HEAD
 		var r, patternFeed;
 		this.tempo = tempo;
 		r = Task.new({loop {
@@ -207,6 +236,10 @@ CARules {
 	}
 	showRules {
 		this.ruleKeys.do {|key| [key, this.rulesDict[key]].postln};
+=======
+		var r;
+		r = Routine.new({loop {this.playNext(); tempo.yield} }).play;
+>>>>>>> parent of f37cf9a... trying to use events
 	}
 
 }
