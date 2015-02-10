@@ -4,13 +4,13 @@ BasicCA {
 	This superclass will handle conversion to patterns
 	*/
 
-	var <>width, <>rules, <>prevState, <>nextState, <>started, <>history, <>midiout, <>windowSize, <>windowPos, <>window, <>scale, <>legato, <>tempo;
+	var <>width, <>prevState, <>nextState, <>started, <>history, <>midiout, <>windowSize, <>windowPos, <>window, <>scale, <>legato, <>tempo, <>cleanDisplay;
 
-	*new {|width, rules, firstState, midiout|
-		^super.new.init(width, rules, firstState, midiout)
+	*new {|width, firstState, midiout|
+		^super.new.init(width, firstState, midiout)
 	}
 
-	init {|width, rules, firstState, midiout|
+	init {|width, firstState, midiout|
 		this.width = width;
 		this.midiout = midiout;
 		if (firstState == nil,
@@ -21,19 +21,15 @@ BasicCA {
 		this.nextState.do { this.prevState = this.prevState ++ "0" };
 		this.started = false;
 		this.history = [this.prevState];
-		this.windowSize = this.width;
+		this.windowSize = 7;  // by default; set with this.setWindow
 		this.windowPos = 0;
 		this.scale = Scale.minorPentatonic;
 		this.window = "";
+		this.cleanDisplay = false;
 		this.legato = true;
 		this.tempo = 1;
-		// this.rules = this.createRules(rules);
-	}
 
-	createRules {
-		// abstract
 	}
-
 	getNext {
 		// abstract
 	}
@@ -49,17 +45,23 @@ BasicCA {
 		this.width.do { res = res ++ 2.rand.asString };
 		^res;
 	}
-
+	singleCellLine {
+		var res = "";
+		this.width.do { res = res ++ "0"};
+		res = res[0..(width/2).asInteger] ++ "1"++ res[((width/2).asInteger +1)..];
+		this.nextState = res.copy;
+	}
+	symmetricalRandomLine{
+	}
 	setWindow { |size, pos, center = true|
 		if (size > this.width, {size = this.width });
 		if (center,
 			{ pos = ((this.width - size)/2).asInteger});
-		// make sure everything fit, else trim window
+		// make sure everything fits, else trim window
 		if ((pos + size) > this.width,
 			{size = this.width - pos; "trimmed window".postln; });
 		this.windowPos = pos;
 		this.windowSize = size;
-		// TempoClock.default.clear;
 		this.started = false;
 	}
 	shiftWindow { |dist|
@@ -75,6 +77,7 @@ BasicCA {
 		var outputString = "";
 		this.nextState.do { |val, i|
 			if (i == this.windowPos, {outputString = outputString ++ "["});
+			if (this.cleanDisplay, {if (val.asString == "1", {val = "x"}, {val = " "});});
 			outputString = outputString ++ val.asString;
 			if (i == (this.windowPos + this.windowSize - 1), {outputString = outputString ++ "]"});
 		};
@@ -83,8 +86,6 @@ BasicCA {
 	}
 	playNext {
 		var patternFeed = [], pbs;
-		// this.displayCurrent();
-		// TempoClock.default.clear;
 		this.windowVals();
 		this.displayCurrent();
 		if (this.started,
@@ -109,24 +110,9 @@ BasicCA {
 
 			}
 		);
-		// patternFeed.do.postln;
-		patternFeed.do {|feed, i|
-			var pb;
-			pb = Pbind (
-				\type, \midi,
-				\midiout, this.midiout,
-				\midicmd, feed[1],
-				\degree, Pseq([feed[0]]),
-				\chan, 0,
-				\root, 0,
-				\dur, this.tempo * 2,
-				\scale, this.scale,
-			);
-			pbs = pbs.add(pb);
-		};
-		if (pbs != nil, {Ppar(pbs).play;});
 
 		this.getNext;
+		^patternFeed;
 
 
 	}
@@ -135,13 +121,92 @@ BasicCA {
 		var win;
 		this.windowSize.do {|i| win = win ++ this.nextState[i + this.windowPos].asString};
 		this.window = win.copy;
-		// this.window.postln;
 	}
 
 	playThru { |tempo = 1|
-		var r;
+		var r, patternFeed;
 		this.tempo = tempo;
-		r = Routine.new({loop {this.playNext(); tempo.yield} }).play;
+		r = Task.new({loop {
+			this.patternFeedToEvent(this.playNext());
+			this.tempo.wait} }).play;
+	}
+	patternFeedToEvent {|patternFeed|
+			patternFeed.do {|feed, i|
+
+			(	type:\midi,
+				midiout: this.midiout,
+				midicmd: feed[1],
+				degree: feed[0],
+				root: -6,
+				scale: this.scale ).play;
+		};
+	}
+
+}
+
+CARules {
+	var  <>rulesDict, <>ruleKeys, <>ruleNum;
+	*new {|rules, ruleKeys|
+		^super.new.init(rules, ruleKeys)
+
+	}
+
+	init {|rules, ruleKeys|
+
+		this.ruleKeys = ruleKeys;
+		this.rulesDict = this.createRules(rules);
+
+	}
+
+	createRules {|rules|
+		var rulesDict = Dictionary.new;
+		if (rules.isString,
+			{ rulesDict = this.makeRulesFromString(rules)},
+			{ rulesDict = this.makeRulesFromInt(rules)});
+		^rulesDict;
+	}
+
+	makeRulesFromString { |rules|
+		var rulesDict = Dictionary.new();
+		if (rules.size != ruleKeys.size, { postf("rule string needs % ones or zeros", this.ruleKeys.size); ^nil; });
+		rules.do { |rule, i|
+			rule = rule.asString;
+			if ((rule != "1") && (rule != "0"), {postln(["rules must contain only 0 and 1:", rule])});
+			rulesDict.add(this.ruleKeys[i] -> rule);
+		};
+		this.setRuleNumFromString(rulesDict);
+		^rulesDict;
+	}
+
+	setRuleNumFromString { |rulesDict|
+		var reverseKeys, total = 0;
+		reverseKeys = this.ruleKeys.reverse();
+		reverseKeys.postln;
+		reverseKeys.do { |key, i|
+			if (key.isInteger != true, {key = key.asString});
+			total = total + (rulesDict[key].asInteger*(2**i));
+		};
+		this.ruleNum = total;
+	}
+	makeRulesFromInt { |rules|
+		var ruleArray, rulesDict = Dictionary.new();
+		if (rules.isInteger != true, {"must be integer (or string)".postln; ^nil});
+		if ((rules < 0) || (rules > (2**this.ruleKeys.size - 1)), {"rule number out of range".postln; ^nil});
+		ruleArray = rules.asBinaryString;
+
+		if (ruleArray.size < this.ruleKeys.size, {ruleArray = ruleArray.padLeft((this.ruleKeys.size) , string:"0")});
+
+		if (ruleArray.size > this.ruleKeys.size, {ruleArray = ruleArray[(ruleArray.size - this.ruleKeys.size)..]});
+
+		ruleArray.do { |rule, i|
+			rulesDict.add(this.ruleKeys[i] -> rule.asString);
+		};
+		this.ruleNum = rules;
+		^rulesDict;
+
+	}
+	showRules {
+		this.ruleKeys.do {|key| [key, this.rulesDict[key]].postln};
 	}
 
 }

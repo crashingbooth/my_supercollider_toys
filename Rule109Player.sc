@@ -1,77 +1,68 @@
 Rule109Player {
-	var <>ca, <>history, <>hypotheses, <>repThresh, <>haveGoodHypo;
+	// builds elemCA using rule 109 and travese it such that when a loop of size repThresh is found,
+	// window advances
+	var <>ca, <>history, <>repThresh, <>mainRoutine;
 
-	*new { |gridWidth, windowSize, repThresh,midiout|
-	^super.new.init(gridWidth, windowSize, repThresh, midiout);
+	*new { |gridWidth, windowSize, repThresh,midiout, initial|
+	^super.new.init(gridWidth, windowSize, repThresh, midiout, initial);
 	}
 
-	init { |gridWidth, windowSize, repThresh = 4, midiout|
-		this.ca = ElemCA(gridWidth, 109, nil, midiout);
+	init { |gridWidth, windowSize, repThresh = 4, midiout, initial|
+		this.ca = ElemCA(gridWidth, 109, initial, midiout);
 		this.ca.setWindow(windowSize, 0, false);
 		this.ca.windowVals();
 		this.ca.window.postln;
 		this.repThresh = repThresh;
 		this.history = [this.ca.window];
-		this.haveGoodHypo = false;
-		// this.history.postln;
+
 	}
 
-	doThang { |tempo = 1|
-		var r;
-		r = Routine.new(
+	traverse { |tempo = 1|
+		// CALL THIS TO RUN
+		var patternFeed;
+		this.mainRoutine = Routine.new(
 			{loop {
-				var current;
-				this.ca.playNext();
-				current = this.ca.window();
-				this.reviewHypotheses(current);
-				this.createHypotheses(current);
-				this.history = this.history.add(current.copy);
-
+				patternFeed = this.ca.playNext();
+				this.ca.patternFeedToEvent(patternFeed);
+				this.history = this.history.add(this.ca.window().copy);
+				this.searchForLoop();
 				tempo.yield}
 		}).play;
 	}
 
-	// hypotheses is a list of [start, line after endline, number of reps]
-	// if current line consistant with hypothesis, nothing happens except update reps
-	// when reps == 4, move window refresh history and hypotheses
-
-	reviewHypotheses { |current|
-		var remove = [];
-		this.hypotheses.do { |hypo, i|
-			var df = hypo[1] - hypo[0], end = hypo[1], reps = hypo[2], curLineNum = this.history.size, target;
-			target = curLineNum - (df*reps);
-			if (history[target] != current,
-				{remove = remove.add(i)},
-				{   if ((target - hypo[0]) == (df -1),
-					{
-						this.hypotheses[i][2] = this.hypotheses[i][2] + 1;
-						if (df > 8, {this.haveGoodHypo = true; this.hypotheses[i] = this.hypotheses[i].add("flag")};);
-						if (this.hypotheses[i][2] == this.repThresh, { this.moveAndReset(); remove = []});
-			} );
-
+	searchForLoop {
+		// looks thru history to see if there is if there is periodicity for the last repThresh cycles
+		var numHypo = (this.history.size / this.repThresh).asInteger, loopSize = 1;
+		// outerloop: test each loopsize
+		while ( { loopSize <= numHypo },
+			{
+				var isValid = true, el = 0;
+				// middle loop: looking at each element in loop
+				while ( { (el < loopSize) && isValid },
+					{	var testAgainst = this.history[this.history.size - 1 - el], step = 1;
+						// inner loop: checking the validity of each element in loop against repThresh repetitions
+						while ( { (step < this.repThresh)  && isValid },
+							{
+								if ( testAgainst != this.history[this.history.size - 1 - el - (step * loopSize)],
+									{ isValid = false }, // nope, should go to outerloop and increment loopSize
+									{ step = step + 1} // sfsg
+								);
+							}
+						);
+						el = el + 1;
+					});
+				if ( isValid,
+					{ loopSize = numHypo + 1; this.moveAndReset();}, // found it, jump to end of loop
+					{ loopSize = loopSize + 1;} // no, try next hypothesis
+				);
 			});
-		};
-		remove.do {|val|
-
-			this.hypotheses.remove(val);
-		}
 	}
-	createHypotheses { |current|
-		//if history is empty???
-		this.history.do { |entry, i|
-			if (entry.asString == current.asString,
-				{
 
-						this.hypotheses = this.hypotheses.add([i, this.history.size, 1])
-				}
-			);
-		}
-	}
 	moveAndReset {
+		// found something
 		this.history = [];
-		this.hypotheses = [];
-		this.haveGoodHypo = false;
 		this.ca.shiftWindow(1);
+		if (this.ca.windowSize < 1, {this.mainRoutine.stop});
 	}
 
 }
