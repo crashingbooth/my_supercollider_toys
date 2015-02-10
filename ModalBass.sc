@@ -1,12 +1,13 @@
 ModalBass {
-	var <>prev, <>note, <>scale, <>octaveSize, <>phraseLength, <>charNote, <>charNoteDict, <>root, <>dur, <>skipLastBeat, <>midiout, <>stretch, <>legato;
+	var <>prev, <>note, <>scale, <>octaveSize, <>phraseLength, <>charNote, <>charNoteDict, <>root, <>dur, <>skipLastBeat, <>midiout, <>beatLength, <>legato, <>offset;
 	*new {|scale, root, phraseLength, midiout|
 		^super.new.init(scale, root, phraseLength, midiout) }
 	init { |scale, root, phraseLength = 8, midiout|
 		this.charNoteDict = Dictionary.newFrom(List["Scale.ionian", 5, "Scale.lydian",4,"Scale.phrygian",1,"Scale.dorian",5]);
 		this.setScale(scale);
 		this.root = root;
-		this.stretch = 0.45;
+		this.offset = -24;
+		this.beatLength = 0.45;
 		this.legato = 0.75; // \sustain = \dur * \legato
 		this.phraseLength = phraseLength;
 		this.midiout = midiout;
@@ -136,10 +137,11 @@ ModalBass {
 			\midiout, this.midiout,
 			[\degree, \dur], Pn(Plazy{Pseq(this.makePhrase)}),
 			\chan, 0,
-			\root, Pn(Plazy{this.root}),
+			\root, Pn(Plazy{this.root}) + this.offset,
 			\scale, Pn(Plazy{this.scale}),
 			\legato, Pn(Plazy{this.legato}),
-			\stretch, this.stretch,
+			\stretch, this.beatLength,
+
 			\amp, 0.3
 		).play;
 	}
