@@ -5,6 +5,7 @@ BasicCA {
 	*/
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 	var <>width, <>prevState, <>nextState, <>started, <>history, <>midiout, <>windowSize, <>windowPos, <>window, <>scale, <>legato, <>tempo, <>cleanDisplay;
 =======
 	var <>width, <>rules, <>prevState, <>nextState, <>started, <>history, <>midiout, <>windowSize, <>windowPos, <>window;
@@ -12,6 +13,12 @@ BasicCA {
 
 	*new {|width, firstState, midiout|
 		^super.new.init(width, firstState, midiout)
+=======
+	var <>width, <>rules, <>prevState, <>nextState, <>started, <>history, <>midiout, <>windowSize, <>windowPos, <>window;
+
+	*new {|width, rules, firstState, midiout|
+		^super.new.init(width, rules, firstState, midiout)
+>>>>>>> parent of f37cf9a... trying to use events
 	}
 
 	init {|width, firstState, midiout|
@@ -29,10 +36,13 @@ BasicCA {
 		this.windowPos = 0;
 		this.window = "";
 <<<<<<< HEAD
+<<<<<<< HEAD
 		this.cleanDisplay = false;
 		this.legato = true;
 		this.tempo = 1;
 =======
+=======
+>>>>>>> parent of f37cf9a... trying to use events
 		// this.rules = this.createRules(rules);
 	}
 >>>>>>> parent of f37cf9a... trying to use events
@@ -71,7 +81,10 @@ BasicCA {
 		this.windowPos = pos;
 		this.windowSize = size;
 <<<<<<< HEAD
+<<<<<<< HEAD
 		this.started = false;
+=======
+>>>>>>> parent of f37cf9a... trying to use events
 =======
 >>>>>>> parent of f37cf9a... trying to use events
 	}
@@ -100,6 +113,9 @@ BasicCA {
 <<<<<<< HEAD
 =======
 		// this.displayCurrent();
+<<<<<<< HEAD
+>>>>>>> parent of f37cf9a... trying to use events
+=======
 >>>>>>> parent of f37cf9a... trying to use events
 		this.windowVals();
 		this.displayCurrent();
@@ -109,6 +125,7 @@ BasicCA {
 					switch (this.nextState[this.windowPos + i].asString,
 						"0", {patternFeed = patternFeed.add([i,\noteOff])},
 <<<<<<< HEAD
+<<<<<<< HEAD
 						"1", {patternFeed = patternFeed.add([i,\noteOn])} );
 					};
 				if (this.legato , { this.started = true; } );
@@ -116,6 +133,8 @@ BasicCA {
 			}
 		);
 =======
+=======
+>>>>>>> parent of f37cf9a... trying to use events
 						"1", {patternFeed = patternFeed.add([i,\noteOn])}
 					);
 				}
@@ -152,6 +171,7 @@ BasicCA {
 	}
 
 	playThru { |tempo = 1|
+<<<<<<< HEAD
 <<<<<<< HEAD
 		var r, patternFeed;
 		this.tempo = tempo;
@@ -237,6 +257,8 @@ CARules {
 	showRules {
 		this.ruleKeys.do {|key| [key, this.rulesDict[key]].postln};
 =======
+=======
+>>>>>>> parent of f37cf9a... trying to use events
 		var r;
 		r = Routine.new({loop {this.playNext(); tempo.yield} }).play;
 >>>>>>> parent of f37cf9a... trying to use events
