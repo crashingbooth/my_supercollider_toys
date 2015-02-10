@@ -6,11 +6,7 @@ ModalBass {
 		this.charNoteDict = Dictionary.newFrom(List["Scale.ionian", 5, "Scale.lydian",4,"Scale.phrygian",1,"Scale.dorian",5]);
 		this.setScale(scale);
 		this.root = root;
-<<<<<<< HEAD
 		this.stretch = 0.45;
-=======
-		this.stretch = 0.5;
->>>>>>> fixin
 		this.legato = 0.75; // \sustain = \dur * \legato
 		this.phraseLength = phraseLength;
 		this.midiout = midiout;
@@ -154,8 +150,4 @@ ModalBass {
 			["deg",beat[0]+1, "dur",beat[1]].postln;
 		}
 	}
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> fixin
