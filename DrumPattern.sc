@@ -25,12 +25,13 @@ DrumPattern {
 
 	getDefaultRideAndHat {
 		this.addOneDrum("ride", [[1,\s,],[2/3],[1/3],[1,\s],[2/3],[1/3]]);
-		this.addOneDrum("closedhh", [[1,\r],[1],[1,\r],[1]])
+		this.addOneDrum("closedhh", [[1,\r],[1,\s],[1,\r],[1,\s]])
 	}
 
 	addOneDrum { |drumName, drumList|
 		var index, totalLength = 0;
 		index = this.drumIndexDict[drumName];
+		this.drumArray[index] = [];
 		drumList.do { |event|
 			var accent = \n;
 			if (event.size == 1, {accent = \n;}, {accent = event[1]});
@@ -47,20 +48,22 @@ DrumPattern {
 }
 
 DrumPlayer {
-	var <>midiout, <>stretch, <>library, <>midiNumIndex, <>currentPattern, <>primaryPat, <>secondaryPat, <>barCount, <>playMode;
+	var <>midiout, <>stretch, <>library, <>midiNumIndex, <>currentPattern, <>primaryPat, <>secondaryPat, <>barCount, <>playMode, <>backUpPattern;
 
 	*new{ |midiout, stretch|
 		^super.new.init (midiout, stretch) }
 	init { |midiout, stretch = 0.5|
 		this.midiout = midiout;
 		this.stretch = 0.45;
-		this.primaryPat = nil;
-		this.secondaryPat = nil;
+
 		this.playMode = \playRandom; // or \playBiased, \playEntireLibrary
 		this.barCount = 0;
 		this.midiNumIndex = [36, 38, 51, 46, 42, 37]; //kick, snare, ride, open, closed, rim
 		this.addToLibrary();
+		this.backUpPattern = [];
 		this.currentPattern;
+		this.primaryPat = this.library[0];
+		this.secondaryPat = this.library[1];
 	}
 
 	playRandomPatterns { |drumNumber|
@@ -76,7 +79,7 @@ DrumPlayer {
 			{ this.secondaryPat = this.library.choose},
 			{ this.secondaryPat = secondary } );
 		while ( {this.primaryPat == this.secondaryPat }, { this.secondaryPat = this.library.choose } );
-		["Primary", this.primaryPat, "Secondary", this.secondaryPat].postln;
+		["Primary", this.primaryPat.name, "Secondary", this.secondaryPat.name].postln;
 
 	}
 	playBiasedPatterns { |drumNumber|
@@ -85,21 +88,23 @@ DrumPlayer {
 		if (this.primaryPat == nil, {this.setBiasPatterns});
 
 		// change patterns when first drumline processed
-		die = 4.rand;
+		die = 5.rand;
 		case
 		{die < 2}  {this.currentPattern = this.primaryPat; "playing primary".postln}
 		{die == 2} {this.currentPattern = this.secondaryPat; "playing secondary".postln}
-		{die == 3} {this.currentPattern = this.library.choose; "playing other".postln};
-		if (die == 3,
+		{die > 2} {this.currentPattern = this.library.choose; postf("playing % /n", this.currentPattern.name )};
+		if (die > 2,
 			{while ( { (this.currentPattern == this.primaryPat) ||(this.currentPattern == this.secondaryPat) },
 					{this.currentPattern = this.library.choose} ) } );
 	}
 
 	decideNext {
+
 		case
 		{ this.playMode == \playRandom} {"HIIIII".postln; this.playRandomPatterns()}
 		{ this.playMode == \playBiased} {this.playBiasedPatterns()}
-		{ this.playMode == \playEntireLibrary} {this.playEntireLibrary()}
+		{ this.playMode == \playEntireLibrary} {this.playEntireLibrary()};
+		if (8.rand == 0, {this.varyHihat()}, {this.currentPattern.getDefaultRideAndHat()});
 
 	}
 	processPattern { |drumNumber|
@@ -122,6 +127,7 @@ DrumPlayer {
 
 	playEntireLibrary { |drumNumber, reps = 8|
 		this.currentPattern = this.library.wrapAt((this.barCount / reps).asInteger);
+
 		this.barCount = this.barCount + 1;
 		postf("currently playing % \n", this.currentPattern.name);
 	}
@@ -134,17 +140,22 @@ DrumPlayer {
 				\type, \midi,
 				\midiout, this.midiout,
 				[\midinote, \dur, \raw_amp], Pn(Plazy{Pseq(this.processPattern(i))}),
-				\amp, Pkey(\raw_amp) + Pwhite(-0.08, 0.05),
+				\amp, Pkey(\raw_amp) + Pwhite(-0.02, 0.02),
 				\chan, 1,
 				\stretch, this.stretch,
-				\lag, Pwhite(-0.03, 0.03)
+				\lag, Pwhite(-0.02, 0.02)
 				).play;
 		) };
 	}
-	/*varyHihat {
-		this.currentPattern[
-	}*/
+	varyHihat {
+		var temp;
+		temp = this.currentPattern.copy;
+		// temp.addOneDrum("closedhh", [[2/3],[2/3],[2/3],[2/3],[2/3],[2/3]]);
+		temp.addOneDrum("ride",  [[2/3,\s],[2/3,\s],[2/3,\s],[1,\s,],[2/3],[1/3]]);
+		"ridevar".postln;
+		this.currentPattern = temp.copy;
 
+	}
 	addToLibrary{
 		// basic
 		this.library = this.library.add(DrumPattern.new("pat 1",4,[
@@ -158,10 +169,10 @@ DrumPlayer {
 		/*this.library = this.library.add(DrumPattern.new("pat 3", 4,[
 			["snare", [[2 + (1/3),\r],[1/3,\s],[1/3],[1,\r]]]
 		] ) );*/
-		this.library = this.library.add(DrumPattern.new("pat 4", 4,[
+	/*	this.library = this.library.add(DrumPattern.new("pat 4", 4,[
 			["snare", [[1/3],[1/3],[(1/3),\r],[1,\r],[1/3],[1/3],[(1/3),\r],[1,\r]]],
 			["kick", [[2/3,\r],[1/3],[1,\r],[2/3,\r],[1/3],[1,\r]]]
-		] ) );
+		] ) );*/
 		this.library = this.library.add(DrumPattern.new("pat 5", 4,[
 			["snare", [[2/3,\r],[1/3],[1/3,\r],[1/3],[1/3],[1,\r],[1,\s]]],
 			["kick", [[2,\r],[2/3,\r],[1/3],[1,\r]]]
