@@ -34,7 +34,7 @@ DrumPattern {
 
 	getDefaultRideAndHat {
 		// this.addOneDrum("ride", [[1,\s,],[2/3],[1/3],[1,\s],[2/3],[1/3]]);
-		this.addOneDrum("ride", [[1,\s,],[this.eighths[0]],[this.eighths[1]],[1,\s],[this.eighths[0]],[this.eighths[1]]]);
+		this.addOneDrum("ride", [[1,],[this.eighths[0],\s],[this.eighths[1]],[1],[this.eighths[0],\s],[this.eighths[1]]]);
 		this.addOneDrum("closedhh", [[1,\r],[1,\s],[1,\r],[1,\s]])
 	}
 
@@ -58,7 +58,7 @@ DrumPattern {
 }
 
 DrumPlayer {
-	var <>midiout, <>stretch, <>library, <>midiNumIndex, <>currentPattern, <>primaryPat, <>secondaryPat, <>barCount, <>playMode, <>backUpPattern, <>varProb;
+	var <>midiout, <>stretch, <>library, <>midiNumIndex, <>currentPattern, <>primaryPat, <>secondaryPat, <>barCount, <>playMode, <>backUpPattern, <>varProb, <>using2BarRidePattern, <>rideLibrary;
 
 	*new{ |midiout, stretch|
 		^super.new.init (midiout, stretch) }
@@ -66,10 +66,12 @@ DrumPlayer {
 		this.midiout = midiout;
 		this.stretch = 0.45;
 
-		this.playMode = \playRandom; // or \playBiased, \playEntireLibrary
+		this.playMode = \playNormal; // or \playBiased, \playEntireLibrary, \playGamblersFallacy, \playSingle
 		this.barCount = 0;
 		this.midiNumIndex = [36, 38, 51, 46, 42, 37]; //kick, snare, ride, open, closed, rim
 		this.addToLibrary();
+		this.buildRideLibrary();
+		this.using2BarRidePattern = false;
 		this.backUpPattern = [];
 		this.currentPattern;
 		this.primaryPat = this.library[0];
@@ -93,24 +95,9 @@ DrumPlayer {
 		["Primary", this.primaryPat.name, "Secondary", this.secondaryPat.name].postln;
 
 	}
-	playBiasedPatterns { |drumNumber|
-		// primary 50%, secondary 25%, all other 25%
-		var die;
-		if (this.primaryPat == nil, {this.setBiasPatterns});
 
-		// change patterns when first drumline processed
-		die = 5.rand;
-		case
-		{die < 2}  {this.currentPattern = this.primaryPat; "playing primary".postln}
-		{die == 2} {this.currentPattern = this.secondaryPat; "playing secondary".postln}
-		{die > 2} {this.currentPattern = this.library.choose; postf("playing % /n", this.currentPattern.name )};
-		if (die > 2,
-			{while ( { (this.currentPattern == this.primaryPat) ||(this.currentPattern == this.secondaryPat) },
-					{this.currentPattern = this.library.choose} ) } );
-	}
 	playEntireLibrary { |drumNumber, reps = 4|
 		this.currentPattern = this.library.wrapAt((this.barCount / reps).asInteger);
-		this.barCount = this.barCount + 1;
 		postf("currently playing % \n", this.currentPattern.name);
 	}
 
@@ -128,16 +115,44 @@ DrumPlayer {
 			}
 
 		);
-		["chose", this.currentPattern.name, "die", die,"old",oldVarProb, "now",this.varProb].postln;
+		["chose", this.currentPattern.name, "old",oldVarProb, "now",this.varProb].postln;
+	}
+
+	chooseByGamblersFallacy {
+		var die = 1.0.rand, oldVarProb = this.varProb, newPattern;
+		if (die > this.varProb,
+			{ if (3.rand > 0,
+				{newPattern = this.primaryPat.copy}, {newPattern = this.secondaryPat.copy});
+				this.varProb = this.varProb + 0.1;
+			}, {
+				this.varProb = 0.5;
+				newPattern = this.library.choose;
+				while ( { (newPattern == this.primaryPat.copy) ||(newPattern == this.secondaryPat.copy) },
+					{newPattern = this.library.choose} )
+			}
+		);
+
+		["chose", newPattern.name, "old",oldVarProb, "now",this.varProb].postln;
+		^newPattern;
+	}
+	playNormal {
+		this.currentPattern = this.chooseByGamblersFallacy;
+	}
+
+	playSingle {
+		if (this.currentPattern == nil, {
+			"no pattern selected, choosing this.library[1]".postln;
+			this.currentPattern = this.library[1]; });
+		["playing", this.currentPattern.name].postln;
 	}
 
 	decideNext {
 
 		case
-		{ this.playMode == \playRandom} {"HIIIII".postln; this.playRandomPatterns()}
-		{ this.playMode == \playBiased} {this.playBiasedPatterns()}
+		{ this.playMode == \playRandom} {this.playRandomPatterns()}
 		{ this.playMode == \playEntireLibrary} {this.playEntireLibrary()}
-		{ this.playMode == \playGamblersFallacy} {this.playGamblersFallacy()};
+		{ this.playMode == \playNormal} {this.playNormal()}
+		{ this.playMode == \playSingle } {this.playSingle()};
 		if (8.rand == 0, {this.varyHihat()}, {this.currentPattern.getDefaultRideAndHat()});
 
 	}
@@ -156,6 +171,8 @@ DrumPlayer {
 				if (event[1] == 0, {output = output.add([\rest, event[0], 0])},
 					{output = output.add([this.midiNumIndex[drumNumber], event[0], event[1]])})
 		};});
+
+		this.barCount = this.barCount + 1;
 		^output;
 	}
 
@@ -178,12 +195,28 @@ DrumPlayer {
 	varyHihat {
 		var temp;
 		temp = this.currentPattern.copy;
-		// temp.addOneDrum("closedhh", [[2/3],[2/3],[2/3],[2/3],[2/3],[2/3]]);
 		temp.addOneDrum("ride",  [[2/3,\s],[2/3,\s],[2/3,\s],[1,\s,],[2/3],[1/3]]);
 		"ridevar".postln;
 		this.currentPattern = temp.copy;
 
 	}
+	buildRideLibrary {
+		var d, u, dp; // i.e., downbeat, upbeat
+		dp = DrumPattern.new("",1);
+		d = dp.eighths[0]; u = dp.eighths[1];
+		this.rideLibrary = [
+			// [0]
+			[["ride", [[1],[d,\s],[u],[1],[d,\s],[u]]],
+				["ride", [[1],[1,\s], [1],[1,\s]]] ] ,
+			// [1]
+			[["ride", [[1],[d,\s],[u],[1],[d,\s],[u]]],
+				["ride", [[d],[u],[1,\s],[d],[u],[1,\s]]]],
+			// [2]
+			[["ride", [[1],[d,\s],[u],[1],[1,\s]]],
+				["ride", [[d],[u],[1,\s],[1],[d,\s],[u]]]]
+		];
+	}
+
 	addToLibrary{
 		// basic
 		this.library = this.library.add(DrumPattern.new("pat 1",4,[
