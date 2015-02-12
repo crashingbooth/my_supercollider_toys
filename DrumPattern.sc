@@ -11,7 +11,7 @@ DrumPattern {
 		this.name = name;
 		this.drumIndexDict = Dictionary();
 
-		this.setSwing(2.5);
+		this.setSwing(2.7);
 
 		this.drumList.do {|name, i|
 			this.drumIndexDict[name] = i

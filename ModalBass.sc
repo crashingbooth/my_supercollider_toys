@@ -1,5 +1,5 @@
 ModalBass {
-	var <>prev, <>note, <>scale, <>octaveSize, <>phraseLength, <>charNote, <>charNoteDict, <>root, <>dur, <>skipLastBeat, <>midiout, <>beatLength, <>legato, <>offset;
+	var <>prev, <>note, <>scale, <>octaveSize, <>phraseLength, <>charNote, <>charNoteDict, <>root, <>dur, <>skipLastBeat, <>midiout, <>beatLength, <>legato, <>offset, <>onDeck, <>verbose;
 	*new {|scale, root, phraseLength, midiout|
 		^super.new.init(scale, root, phraseLength, midiout) }
 	init { |scale, root, phraseLength = 8, midiout|
@@ -12,6 +12,8 @@ ModalBass {
 		this.phraseLength = phraseLength;
 		this.midiout = midiout;
 		this.skipLastBeat = false;
+		this.onDeck = [this.scale, this.root];
+		this.verbose = false;
 		this.dur = 1;
 		this.prev = 0;
 		this.note = 0;
@@ -23,8 +25,17 @@ ModalBass {
 		this.octaveSize = scale.size;
 		if (root != nil, {this.root = root});
 	}
+
+	scheduleChange { |scale, root = nil|
+		this.onDeck = [scale, root];
+	}
 	decideFirstBeat {
 		var beatPhrase;
+
+		// check if scale change has been scheduled
+		if (this.onDeck != [this.scale, this.root],
+			{ this.setScale(this.onDeck[0], this.onDeck[1])});
+
 		if (this.prev >= (this.octaveSize - 1),
 			{ this.note = this.octaveSize },
 			{ this.note = 0 }
@@ -67,7 +78,7 @@ ModalBass {
 	}
 	decideLastBeat {
 		// force a leading tone (above or below)
-		if (skipLastBeat, {skipLastBeat = false; "skipped".postln; ^[] });
+		if (skipLastBeat, {skipLastBeat = false;  ^[] });
 		if (this.prev > this.octaveSize,
 			{this.note = [this.octaveSize - 1, this.octaveSize + 1].choose},
 			{this.note = [-1, 1].choose},
@@ -127,7 +138,7 @@ ModalBass {
 			{next = this.decideDefaultBeat }; // default case
 			phrase = phrase ++ next;
 		};
-		this.displayPhrase(phrase);
+		if (this.verbose, { this.displayPhrase(phrase) });
 		^phrase;
 	}
 	playPhrases {
