@@ -1,5 +1,5 @@
 DrumPattern {
-	var  <>length, <>drumList, <>drumIndexDict, <>accentDict, <>drumArray, <>name;
+	var  <>length, <>drumList, <>drumIndexDict, <>accentDict, <>drumArray, <>name, <>swingRatio, <>eighths;
 
 	*new { |name, length, drumParts|
 		^super.new.init (name, length, drumParts) }
@@ -10,6 +10,9 @@ DrumPattern {
 		this.drumList = ["kick","snare","ride","openhh", "closedhh","rim"];
 		this.name = name;
 		this.drumIndexDict = Dictionary();
+
+		this.setSwing(2.5);
+
 		this.drumList.do {|name, i|
 			this.drumIndexDict[name] = i
 		};
@@ -19,12 +22,19 @@ DrumPattern {
 		this.getMultipleDrums(drumParts);
 
 	}
+
 	at { |i|
 		^this.drumArray[i]
 	}
+	setSwing {|ratio|
+		this.swingRatio = ratio;
+		this.eighths = [this.swingRatio/ (this.swingRatio + 1), 1 / (this.swingRatio + 1)];
+	}
+
 
 	getDefaultRideAndHat {
-		this.addOneDrum("ride", [[1,\s,],[2/3],[1/3],[1,\s],[2/3],[1/3]]);
+		// this.addOneDrum("ride", [[1,\s,],[2/3],[1/3],[1,\s],[2/3],[1/3]]);
+		this.addOneDrum("ride", [[1,\s,],[this.eighths[0]],[this.eighths[1]],[1,\s],[this.eighths[0]],[this.eighths[1]]]);
 		this.addOneDrum("closedhh", [[1,\r],[1,\s],[1,\r],[1,\s]])
 	}
 
@@ -48,7 +58,7 @@ DrumPattern {
 }
 
 DrumPlayer {
-	var <>midiout, <>stretch, <>library, <>midiNumIndex, <>currentPattern, <>primaryPat, <>secondaryPat, <>barCount, <>playMode, <>backUpPattern;
+	var <>midiout, <>stretch, <>library, <>midiNumIndex, <>currentPattern, <>primaryPat, <>secondaryPat, <>barCount, <>playMode, <>backUpPattern, <>varProb;
 
 	*new{ |midiout, stretch|
 		^super.new.init (midiout, stretch) }
@@ -64,6 +74,7 @@ DrumPlayer {
 		this.currentPattern;
 		this.primaryPat = this.library[0];
 		this.secondaryPat = this.library[1];
+		this.varProb = 0.5;
 	}
 
 	playRandomPatterns { |drumNumber|
@@ -97,13 +108,36 @@ DrumPlayer {
 			{while ( { (this.currentPattern == this.primaryPat) ||(this.currentPattern == this.secondaryPat) },
 					{this.currentPattern = this.library.choose} ) } );
 	}
+	playEntireLibrary { |drumNumber, reps = 4|
+		this.currentPattern = this.library.wrapAt((this.barCount / reps).asInteger);
+		this.barCount = this.barCount + 1;
+		postf("currently playing % \n", this.currentPattern.name);
+	}
+
+	playGamblersFallacy {
+		var die = 1.0.rand, oldVarProb = this.varProb;
+		if (die > this.varProb,
+			{ if (3.rand > 0,
+				{this.currentPattern = this.primaryPat}, {this.currentPattern = this.secondaryPat});
+				this.varProb = this.varProb + 0.1;
+
+			}, {
+				this.varProb = 0.5;
+				this.currentPattern = this.library.choose;
+				while ( { (this.currentPattern == this.primaryPat) ||(this.currentPattern == this.secondaryPat) },	{this.currentPattern = this.library.choose} )
+			}
+
+		);
+		["chose", this.currentPattern.name, "die", die,"old",oldVarProb, "now",this.varProb].postln;
+	}
 
 	decideNext {
 
 		case
 		{ this.playMode == \playRandom} {"HIIIII".postln; this.playRandomPatterns()}
 		{ this.playMode == \playBiased} {this.playBiasedPatterns()}
-		{ this.playMode == \playEntireLibrary} {this.playEntireLibrary()};
+		{ this.playMode == \playEntireLibrary} {this.playEntireLibrary()}
+		{ this.playMode == \playGamblersFallacy} {this.playGamblersFallacy()};
 		if (8.rand == 0, {this.varyHihat()}, {this.currentPattern.getDefaultRideAndHat()});
 
 	}
@@ -125,12 +159,6 @@ DrumPlayer {
 		^output;
 	}
 
-	playEntireLibrary { |drumNumber, reps = 8|
-		this.currentPattern = this.library.wrapAt((this.barCount / reps).asInteger);
-
-		this.barCount = this.barCount + 1;
-		postf("currently playing % \n", this.currentPattern.name);
-	}
 
 	playPattern { |mode = nil|
 		var pbs = [];
@@ -182,10 +210,10 @@ DrumPlayer {
 			["kick", [[(1+(1/3))], [(1+(1/3))],[(1+(1/3))]]],
 			["snare", [[2/3], [1 +(1/3)], [1 +(1/3)], [2/3]]]
 		] ) );
-		this.library = this.library.add(DrumPattern.new("pat 7",4,[
+	/*	this.library = this.library.add(DrumPattern.new("pat 7",4,[
 			["kick", [[2],[2]]],
 			["snare", [[2 +(1/3),\r], [1/3],[1 +(1/3)]]]
-		] ) );
+		] ) );*/
 		this.library = this.library.add(DrumPattern.new("pat 8, poly1",4,[
 			["kick", [[(2/3),\r], [1], [1], [1],[(1/3)]]],
 			["snare", [[1/3],[1 +(2/3)],[1/3],[1 +(2/3)] ]]
