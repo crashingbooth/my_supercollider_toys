@@ -1,9 +1,16 @@
 ModalBass {
-	var <>prev, <>note, <>scale, <>octaveSize, <>phraseLength, <>charNote, <>charNoteDict, <>root, <>dur, <>skipLastBeat, <>midiout, <>beatLength, <>legato, <>offset, <>onDeck, <>verbose;
+	var <>prev, <>prev2, <>note, <>scale, <>octaveSize, <>phraseLength, <>charNote, <>charNoteDict, <>root, <>dur, <>skipLastBeat, <>midiout, <>beatLength, <>legato, <>offset, <>asc, <>usedChromaticArr, <>onDeck, <>verbose;
 	*new {|scale, root, phraseLength, midiout|
 		^super.new.init(scale, root, phraseLength, midiout) }
 	init { |scale, root, phraseLength = 8, midiout|
-		this.charNoteDict = Dictionary.newFrom(List["Scale.ionian", 5, "Scale.lydian",4,"Scale.phrygian",1,"Scale.dorian",5]);
+		this.charNoteDict = Dictionary.newFrom(
+			List["Scale.ionian", 3,
+				"Scale.dorian", 5,
+				"Scale.phrygian", 1,
+				"Scale.lydian", 3,
+				"Scale.mixolydian", 6,
+				"Scale.aeolian", 5,
+				"Scale.locrian", [1,4].choose,]);
 		this.setScale(scale);
 		this.root = root;
 		this.offset = -24;
@@ -11,12 +18,15 @@ ModalBass {
 		this.legato = 0.75; // \sustain = \dur * \legato
 		this.phraseLength = phraseLength;
 		this.midiout = midiout;
-		this.skipLastBeat = false;
 		this.onDeck = [this.scale, this.root];
-		this.verbose = false;
+ 		this.verbose = false;
+		this.skipLastBeat = false;
+		this.usedChromaticArr = Array.fill(8, {0});
 		this.dur = 1;
 		this.prev = 0;
+		this.prev2 = 0;
 		this.note = 0;
+		this.asc = 0;
 	}
 
 	setScale { |scale, root = nil|
@@ -25,20 +35,11 @@ ModalBass {
 		this.octaveSize = scale.size;
 		if (root != nil, {this.root = root});
 	}
-
-	scheduleChange { |scale, root = nil|
-		this.onDeck = [scale, root];
-	}
-	decideFirstBeat {
+	makeFirstBeat {
 		var beatPhrase;
-
-		// check if scale change has been scheduled
-		if (this.onDeck != [this.scale, this.root],
-			{ this.setScale(this.onDeck[0], this.onDeck[1])});
-
 		if (this.prev >= (this.octaveSize - 1),
-			{ this.note = this.octaveSize },
-			{ this.note = 0 }
+			{ this.note = this.octaveSize; this.asc = [-1,0].choose; },
+			{ this.note = 0; this.asc = [1,0].choose; }
 		);
 
 		// vary rhythm?:
@@ -52,76 +53,136 @@ ModalBass {
 			//else no variation
 			{ beatPhrase = [[this.note, this.dur]] }
 		);
-
+		this.prev2 = this.prev;
 		this.prev = this.note;
 		^beatPhrase;
 	}
-	decideDefaultBeat {
-		var prev = this.prev, cn = this.charNote, note;
+
+	makeSecondBeat {
+		if ( (this.prev==0) && (4.rand==0),
+			{ this.note = this.octaveSize;  this.asc=[-1,0].choose },
+			{ this.note = this.chooseDefaultNote() } );
+
+		this.prev2 = this.prev;
+		this.prev = this.note;
+		^[[this.note, this.dur]];
+	}
+
+	chooseDefaultNote {
+		// returns note only, does not change globals
+		var note;
+		case
+	// ascending
+		{ this.asc == 1 }
+		{ note = [this.prev+1,this.prev+2,this.prev+3,this.prev-1,this.charNote].wchoose([0.7,0.1,0.05,0.05,0.1]);}
+	// descending
+		{ this.asc == -1 }
+		{ note = [this.prev-1,this.prev-2,this.prev-3,this.prev+1,this.charNote].wchoose([0.7,0.1,0.05,0.05,0.1]);}
+	// direction not set, in lower octave
+		{ (this.asc == 0) && (this.prev < this.octaveSize) }
+		{ note = [this.prev+1,this.prev+2,this.prev+3,this.prev-1,this.charNote].wchoose([0.4,0.2,0.1,0.1,0.2]);}
+	// direction not set, in upper octave
+		{ (this.asc == 0) && (this.prev >= this.octaveSize) }
+		{ note = [this.prev-1,this.prev-2,this.prev-3,this.prev+1,this.charNote].wchoose([0.4,0.2,0.1,0.1,0.2]); };
+
+		^note;
+	}
+
+	chooseFinalNote {
+		// returns note only, does not change globals
+		var note, octave = (this.note/this.octaveSize).asInteger, distance = this.distanceFromTonic(), direction, chromatic = 0;
+
+		if (distance > 0, {direction = 1 }, {direction = -1});
+		if ((this.note > 0 ) && (direction < 0), {octave = octave +1 }); //hacky
 
 		case
-		// low notes (more than leading tone below root)
-		{ prev < -2 }
-		{ note=[prev+1,prev+1,prev+1,prev+1,prev+2,prev+2,prev+3,prev-1,[cn,cn,cn-this.octaveSize].choose].choose; }
-		// high notes (octave or higher
-		{ prev >= this.octaveSize }
-		{note=[prev+1,prev+1,prev+2,prev-1,prev-1,prev-1,prev-1, prev-2,prev-2,prev-3,[cn+this.octaveSize,cn,cn].choose].choose; }
-		// else
-		{ note=[prev+1,prev+1,prev+1,prev+1,prev+2,prev+2,prev+3,prev-1,prev-1,prev-2,[cn,cn,cn-this.octaveSize].choose].choose; };
-
-		note = this.preventRootOrRepeat(note, prev);
-
-		this.note = note;
-		this.prev = this.note;
-		^[[this.note, this.dur]];
+		{ abs(distance) > 2 }  { note = [-1,1].choose; }
+		{ abs(distance) == 1 } { note = (-1 * direction) } // invert sign of half, treat this as degree
+		{ abs(distance) == 2 } {
+			if (this.shouldUseChromatic,
+				{ note = 0.1 * direction; chromatic = 1  },
+				{ note = -1 * direction; } )
+			};
+		this.updateUsedChromatic(chromatic);
+		//restore original octave:
+		note = note + (this.octaveSize * octave);
+		^note;
 
 	}
-	decideLastBeat {
+	shouldUseChromatic {
+		// return false if just used or more than 3 of last 8
+		if ((this.usedChromaticArr.sum > 3) || (this.usedChromaticArr[0] == 1),
+			{ "refused chromatic".postln;^false}, {"accepted chromatic".postln;^true});
+
+		}
+	updateUsedChromatic { |used| // 1 or 0
+		// keep track of 8 most recent last beat
+		this.usedChromaticArr = this.usedChromaticArr.addFirst(used);
+		this.usedChromaticArr = this.usedChromaticArr[0..7];
+	}
+
+	makeDefaultBeat {
+		this.note = this.chooseDefaultNote();
+		this.note = this.preventRootOrRepeat(this.note, this.prev, this.prev2);
+
+		this.prev2 = this.prev;
+		this.prev = this.note;
+		^[[this.note, this.dur]];
+	}
+
+	makeLastBeat {
 		// force a leading tone (above or below)
-		if (skipLastBeat, {skipLastBeat = false;  ^[] });
-		if (this.prev > this.octaveSize,
-			{this.note = [this.octaveSize - 1, this.octaveSize + 1].choose},
-			{this.note = [-1, 1].choose},
-		);
+		if (this.skipLastBeat, {this.skipLastBeat = false;  ^[] });
+		this.note = this.chooseFinalNote();
+
+		this.prev2 = this.prev;
 		this.prev = this.note;
 		^[[this.note, this.dur]];
 	}
-	decide2ndLastBeat {
-		var phrase = [], prev = this.prev, note = this.note, cn = this.charNote;
+
+	make2ndLastBeat {
+		var phrase;
 		if (6.rand == 0,
 			{
 				this.skipLastBeat = true;
 				// 1st in triplet
+				this.note = this.chooseDefaultNote();
+				this.note = this.preventRootOrRepeat(this.note, this.prev, this.prev2);
 				phrase = phrase.add([this.note, this.dur*2/3]);
+				this.prev2 = this.prev;
 				this.prev = this.note;
-				prev = this.prev;
 
 				// 2nd in triplet
-				if (prev<8,{
-					note=[prev+1,prev+1,prev+1,prev+1,prev+2,prev+2,prev+3,
-						prev-1,prev-1,prev-2,[cn,cn,cn-this.octaveSize].choose].choose;
-					},{ note=[prev+1,prev+1,prev+2,prev-1,prev-1,prev-1,prev-1,
-							prev-2,prev-2,prev-3,[cn+this.octaveSize,cn,cn].choose].choose;
-					});
-				this.note = this.preventRootOrRepeat(note, prev);
+
+				this.note = this.chooseDefaultNote();
+				this.note = this.preventRootOrRepeat(this.note, this.prev, this.prev2);
 				phrase = phrase.add([this.note, this.dur*2/3]);
+				this.prev2 = this.prev;
 				this.prev = this.note;
 
 				// 3rd in triplet (set to upper or lower leading tone)
-				if (this.prev > this.octaveSize,
-					{this.note = [this.octaveSize - 1, this.octaveSize + 1].choose},
-					{this.note = [-1, 1].choose}
-				);
+				this.note = this.chooseFinalNote;
 				phrase = phrase.add([this.note, this.dur*2/3]);
-				this.prev = this.note;
-			}, {phrase = this.decideDefaultBeat()}
+				/*this.prev2 = this.prev;
+				this.prev = this.note;*/
+			}, {phrase = this.makeDefaultBeat()}
 		);
+		this.prev2 = this.prev;
 		this.prev = this.note;
 		^phrase;
 	}
 
-	preventRootOrRepeat { |note, prev|
-		while( {((note % this.octaveSize) == 0) || (note == prev) },
+	distanceFromTonic {
+		// called in chooseFinalNote
+		var interval;
+		interval = (this.scale[this.note] - this.scale[0]);
+
+		if ( interval > 6, {interval = (interval - 12)});
+		^interval;
+	}
+
+	preventRootOrRepeat { |note, prev, prev2|
+		while( {((note % this.octaveSize) == 0) || (note == prev) || (note == prev2) },
 			{ note = [note + 1, note - 1].choose; }
 		);
 		^note;
@@ -132,10 +193,11 @@ ModalBass {
 		this.phraseLength.do {|i|
 			var next;
 			case
-			{i == 0} { next = this.decideFirstBeat }
-			{i == (this.phraseLength - 2) } { next = this.decide2ndLastBeat() }
-			{i == (this.phraseLength - 1) } { next = this.decideLastBeat() }
-			{next = this.decideDefaultBeat }; // default case
+			{i == 0} { next = this.makeFirstBeat }
+			{i == 1} { next = this.makeSecondBeat }
+			{i == (this.phraseLength - 2) } { next = this.make2ndLastBeat() }
+			{i == (this.phraseLength - 1) } { next = this.makeLastBeat() }
+			{next = this.makeDefaultBeat }; // default case
 			phrase = phrase ++ next;
 		};
 		if (this.verbose, { this.displayPhrase(phrase) });
@@ -160,7 +222,7 @@ ModalBass {
 
 		[this.scale, "root", this.root].postln;
 		phrase.do { |beat, i|
-			["deg",beat[0]+1, "dur",beat[1]].postln;
+			["deg",beat[0], "dur",beat[1]].postln;
 		}
 	}
 }
