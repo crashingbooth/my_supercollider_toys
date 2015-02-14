@@ -34,7 +34,6 @@ DrumPattern {
 
 
 	getDefaultRideAndHat {
-		// this.addOneDrum("ride", [[1,\s,],[2/3],[1/3],[1,\s],[2/3],[1/3]]);
 		this.addOneDrum("ride", [[1,],[DrumPattern.eighths[0],\s],[DrumPattern.eighths[1]],[1],[DrumPattern.eighths[0],\s],[DrumPattern.eighths[1]]]);
 		this.addOneDrum("closedhh", [[1,\r],[1,\s],[1,\r],[1,\s]])
 	}
@@ -49,7 +48,7 @@ DrumPattern {
 			this.drumArray[index] = this.drumArray[index].add([event[0], DrumPattern.accentDict[accent]]);
 			totalLength = totalLength + event[0];
 		};
-		if (totalLength != this.length, {["part length does not match obj length:", totalLength, this.length,"drumlist", drumList].postln });
+		if ((totalLength.equalWithPrecision(this.length, 0.01)) != true, {["part length does not match obj length:", totalLength, this.length,"drumlist", drumList].postln });
 	}
 	getMultipleDrums { |drumParts|
 		drumParts.do { |drumLine|
@@ -59,20 +58,22 @@ DrumPattern {
 }
 
 DrumPlayer {
-	var <>midiout, <>stretch, <>library, <>midiNumIndex, <>currentPattern, <>primaryPat, <>secondaryPat, <>barCount, <>playMode, <>backUpPattern, <>varProb, <>rideLibrary, <>schedule;
+	var <>midiout, <>beatLength, <>library, <>currentPattern, <>primaryPat, <>secondaryPat, <>barCount, <>playMode, <>varProb, <>rideLibrary, <>schedule;
+	classvar <>midiNumIndex;
 
-	*new{ |midiout, stretch|
-		^super.new.init (midiout, stretch) }
-	init { |midiout, stretch = 0.5|
+	*new{ |midiout|
+		^super.new.init (midiout) }
+	*initClass {
+		DrumPlayer.midiNumIndex = [36, 38, 51, 46, 42, 37]; //kick, snare, ride, open, closed, rim
+	}
+	init { |midiout|
 		this.midiout = midiout;
-		this.stretch = 0.45;
+		this.beatLength = 0.45;
 
-		this.playMode = \playNormal; // or \playBiased, \playEntireLibrary, \playGamblersFallacy, \playSingle
+		this.playMode = \playNormal; // or \playRandom, \playEntireLibrary, \playNormal, \playSingle
 		this.barCount = 0;
-		this.midiNumIndex = [36, 38, 51, 46, 42, 37]; //kick, snare, ride, open, closed, rim
-		this.addToLibrary();
+		this.buildBasicLibrary();
 		this.buildRideLibrary();
-		this.backUpPattern = [];
 		this.schedule = Routine({});
 		this.currentPattern = this.library[0];
 		this.primaryPat = this.library[0];
@@ -170,14 +171,14 @@ DrumPlayer {
 		var drumLine, output = [];
 
 		// change this.cuurentPattern based on this.playMode
-		if (drumNumber == (this.midiNumIndex.size-1), {this.decideNext});
+		if (drumNumber == (DrumPlayer.midiNumIndex.size-1), {this.decideNext});
 
 		drumLine = this.currentPattern.[drumNumber];
 		if (drumLine.size == 0, {output = [[\rest, this.currentPattern.length, 0]]}, {
 			drumLine.do { |event, i| //event is [dur, amp (or rest symbol)]
 
 				if (event[1] == 0, {output = output.add([\rest, event[0], 0])},
-					{output = output.add([this.midiNumIndex[drumNumber], event[0], event[1]])})
+					{output = output.add([DrumPlayer.midiNumIndex[drumNumber], event[0], event[1]])})
 		};});
 
 
@@ -188,14 +189,14 @@ DrumPlayer {
 	playPattern { |mode = nil|
 		var pbs = [];
 
-		this.midiNumIndex.do { |drumNum, i|
+		DrumPlayer.midiNumIndex.do { |drumNum, i|
 			pbs = pbs.add( Pbind (
 				\type, \midi,
 				\midiout, this.midiout,
 				[\midinote, \dur, \raw_amp], Pn(Plazy{Pseq(this.processPattern(i))}),
 				\amp, Pkey(\raw_amp) + Pwhite(-0.02, 0.02),
 				\chan, 1,
-				\stretch, this.stretch,
+				\stretch, this.beatLength,
 				\lag, Pwhite(-0.02, 0.02)
 				).play;
 		) };
@@ -225,7 +226,7 @@ DrumPlayer {
 		];
 	}
 
-	addToLibrary{
+	buildBasicLibrary{
 		// basic
 		this.library = this.library.add(DrumPattern.new("pat 1",4,[
 			["kick", [[2/3,\s],[1/3],[1,\r],[2/3,\s],[1/3],[1,\r]]],
