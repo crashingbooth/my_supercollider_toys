@@ -1,5 +1,6 @@
 ModalBass {
-	var <>prev, <>prev2, <>note, <>scale, <>octaveSize, <>phraseLength, <>charNote, <>charNoteDict, <>root, <>dur, <>skipLastBeat, <>midiout, <>beatLength, <>legato, <>offset, <>asc, <>usedChromaticArr, <>onDeck, <>verbose;
+	var <>prev, <>prev2, <>note, <>scale, <>octaveSize, <>phraseLength, <>charNote, <>charNoteDict, <>root, <>dur, <>skipLastBeat, <>midiout, <>beatLength, <>legato, <>offset, <>asc, <>usedChromaticArr, <>onDeck, <>verbose, <>channel,
+	<>behaviour;
 	*new {|scale, root, phraseLength, midiout|
 		^super.new.init(scale, root, phraseLength, midiout) }
 	init { |scale, root, phraseLength = 8, midiout|
@@ -22,6 +23,8 @@ ModalBass {
  		this.verbose = false;
 		this.skipLastBeat = false;
 		this.usedChromaticArr = Array.fill(8, {0});
+		this.behaviour = \playNormal;
+		this.channel = 0;
 		this.dur = 1;
 		this.prev = 0;
 		this.prev2 = 0;
@@ -97,7 +100,7 @@ ModalBass {
 
 		case
 		{ abs(distance) > 2 }  { note = [-1,1].choose; }
-		{ abs(distance) == 1 } { note = (-1 * direction) } // invert sign of half, treat this as degree
+		{ abs(distance) == 1 } { note = (-1 * direction) } // change direction
 		{ abs(distance) == 2 } {
 			if (this.shouldUseChromatic,
 				{ note = 0.1 * direction; chromatic = 1  },
@@ -190,6 +193,17 @@ ModalBass {
 	}
 	makePhrase{
 		var phrase = [];
+
+		case
+		{ this.behaviour == \playNormal }  { phrase = this.normalBehaviour }
+		{ this.behaviour == \playDifferent } { phrase = this.differentBehaviour };
+
+		if (this.verbose, { this.displayPhrase(phrase) });
+		^phrase;
+	}
+
+	normalBehaviour {
+		var phrase = [];
 		this.phraseLength.do {|i|
 			var next;
 			case
@@ -199,8 +213,15 @@ ModalBass {
 			{i == (this.phraseLength - 1) } { next = this.makeLastBeat() }
 			{next = this.makeDefaultBeat }; // default case
 			phrase = phrase ++ next;
-		};
-		if (this.verbose, { this.displayPhrase(phrase) });
+		}
+		^phrase;
+	}
+
+	differentBehaviour {
+		var phrase = [];
+
+		// some procedure
+
 		^phrase;
 	}
 	playPhrases {
@@ -209,7 +230,7 @@ ModalBass {
 			\type, \midi,
 			\midiout, this.midiout,
 			[\degree, \dur], Pn(Plazy{Pseq(this.makePhrase)}),
-			\chan, 0,
+			\chan, this.channel,
 			\root, Pn(Plazy{this.root}) + this.offset,
 			\scale, Pn(Plazy{this.scale}),
 			\legato, Pn(Plazy{this.legato}),
