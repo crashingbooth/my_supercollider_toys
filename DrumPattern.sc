@@ -1,22 +1,23 @@
 DrumPattern {
-	var  <>length, <>drumList, <>drumIndexDict, <>accentDict, <>drumArray, <>name, <>swingRatio, <>eighths;
+	var  <>length, <>drumArray, <>name;
+	classvar <>drumIndexDict, <>accentDict, <>drumList, <>swingRatio, <>eighths;
 
 	*new { |name, length, drumParts|
 		^super.new.init (name, length, drumParts) }
 
+	*initClass {
+		// amp of 0.5 will be default volume
+		DrumPattern.accentDict = Dictionary.newFrom(List[\s, 0.62, \w, 0.3,  \n, 0.5, \vs, 0.8, \r, 0]);
+		DrumPattern.drumList = ["kick","snare","ride","openhh", "closedhh","rim"];
+		DrumPattern.drumIndexDict = Dictionary();
+		DrumPattern.drumList.do {|name, i| DrumPattern.drumIndexDict[name] = i} ;
+		DrumPattern.setSwing(2.7);
+	}
+
 	init { |name = "unnamed", length = 4, drumParts |
 		// amp of 0.5 will be default volume
-		this.accentDict = Dictionary.newFrom(List[\s, 0.62, \w, 0.3,  \n, 0.5, \vs, 0.8, \r, 0]);
-		this.drumList = ["kick","snare","ride","openhh", "closedhh","rim"];
 		this.name = name;
-		this.drumIndexDict = Dictionary();
-
-		this.setSwing(2.7);
-
-		this.drumList.do {|name, i|
-			this.drumIndexDict[name] = i
-		};
-		this.drumArray = Array.fill(this.drumList.size,{[]});
+		this.drumArray = Array.fill(DrumPattern.drumList.size,{[]});
 		this.length = length;
 		this.getDefaultRideAndHat();
 		this.getMultipleDrums(drumParts);
@@ -26,26 +27,26 @@ DrumPattern {
 	at { |i|
 		^this.drumArray[i]
 	}
-	setSwing {|ratio|
-		this.swingRatio = ratio;
-		this.eighths = [this.swingRatio/ (this.swingRatio + 1), 1 / (this.swingRatio + 1)];
+	*setSwing {|ratio|
+		DrumPattern.swingRatio = ratio;
+		DrumPattern.eighths = [DrumPattern.swingRatio/ (DrumPattern.swingRatio + 1), 1 / (DrumPattern.swingRatio + 1)];
 	}
 
 
 	getDefaultRideAndHat {
 		// this.addOneDrum("ride", [[1,\s,],[2/3],[1/3],[1,\s],[2/3],[1/3]]);
-		this.addOneDrum("ride", [[1,],[this.eighths[0],\s],[this.eighths[1]],[1],[this.eighths[0],\s],[this.eighths[1]]]);
+		this.addOneDrum("ride", [[1,],[DrumPattern.eighths[0],\s],[DrumPattern.eighths[1]],[1],[DrumPattern.eighths[0],\s],[DrumPattern.eighths[1]]]);
 		this.addOneDrum("closedhh", [[1,\r],[1,\s],[1,\r],[1,\s]])
 	}
 
 	addOneDrum { |drumName, drumList|
 		var index, totalLength = 0;
-		index = this.drumIndexDict[drumName];
+		index = DrumPattern.drumIndexDict[drumName];
 		this.drumArray[index] = [];
 		drumList.do { |event|
 			var accent = \n;
 			if (event.size == 1, {accent = \n;}, {accent = event[1]});
-			this.drumArray[index] = this.drumArray[index].add([event[0], this.accentDict[accent]]);
+			this.drumArray[index] = this.drumArray[index].add([event[0], DrumPattern.accentDict[accent]]);
 			totalLength = totalLength + event[0];
 		};
 		if (totalLength != this.length, {["part length does not match obj length:", totalLength, this.length,"drumlist", drumList].postln });
@@ -208,9 +209,9 @@ DrumPlayer {
 
 	}
 	buildRideLibrary {
-		var d, u, dp; // i.e., downbeat, upbeat
-		dp = DrumPattern.new("",1);
-		d = dp.eighths[0]; u = dp.eighths[1];
+		var d, u; // i.e., downbeat, upbeat
+
+		d = DrumPattern.eighths[0]; u = DrumPattern.eighths[1];
 		this.rideLibrary = [
 			// [0]
 			[["ride", [[1],[d,\s],[u],[1],[d,\s],[u]]],
