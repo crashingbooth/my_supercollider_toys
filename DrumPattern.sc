@@ -41,6 +41,7 @@ DrumPattern {
 	addOneDrum { |drumName, drumList|
 		var index, totalLength = 0;
 		index = DrumPattern.drumIndexDict[drumName];
+
 		this.drumArray[index] = [];
 		drumList.do { |event|
 			var accent = \n;
@@ -85,13 +86,16 @@ DrumPlayer {
 
 		this.playMode = \playNormal; // or \playRandom, \playEntireLibrary, \playNormal, \playSingle
 		this.barCount = 0;
-		this.basicKSLibrary = Dictionary();
-		this.buildBasicLibrary();
+		// this.basicKSLibrary = [];
+		this.buildKSLibrary();
+
 		this.buildRideLibrary();
 		this.schedule = Routine({});
-		this.currentPattern = this.library[0];
-		this.primaryPat = this.library[0];
-		this.secondaryPat = this.library[1];
+		this.currentPattern = DrumPlayer.build1BarPattern(this.basicKSLibrary[0]);
+		/*this.primaryPat = this.library[0];
+		this.secondaryPat = this.library[1];*/
+		this.primaryPat = this.basicKSLibrary[0];
+		this.secondaryPat = this.basicKSLibrary[0];
 		this.verbose = true;
 		this.varProb = 0.5;
 	}
@@ -101,22 +105,20 @@ DrumPlayer {
 		this.currentPattern.name.postln;
 	}
 
-	setBiasPatterns { |primary, secondary|
-		if (primary == nil,
-			{ this.primaryPat = this.library.choose},
-			{ this.primaryPat = primary } );
-		if (secondary == nil,
-			{ this.secondaryPat = this.library.choose},
-			{ this.secondaryPat = secondary } );
-		while ( {this.primaryPat == this.secondaryPat }, { this.secondaryPat = this.library.choose } );
-		if (this.verbose, {
-			["Primary", this.primaryPat.name, "Secondary", this.secondaryPat.name].postln; });
+	*build1BarPattern { |ksLibraryIndex, ridePat = nil|
+		// ksLibraryIndex should be full list from buildKSLIbrary, ridePat id eventlist only
+		var outPattern;
+
+		outPattern = DrumPattern.new(ksLibraryIndex[0],ksLibraryIndex[1],ksLibraryIndex[2]);
+		if (ridePat != nil, { outPattern.addOneDrum("ride", ridePat[1])});
+		^outPattern;
 
 	}
 
-	playEntireLibrary { |drumNumber, reps = 4|
-		var nextPattern;
-		this.currentPattern = this.library.wrapAt((this.barCount / reps).asInteger).copy;
+	playEntireLibrary { |reps = 4|
+		var getVal;
+		getVal = (this.barCount / reps).asInteger;
+		this.currentPattern  = DrumPlayer.build1BarPattern(this.basicKSLibrary.wrapAt(getVal));
 		postf("currently playing % \n", this.currentPattern.name);
 	}
 
@@ -126,44 +128,37 @@ DrumPlayer {
 			{ if (3.rand > 0,
 				{newPattern = this.primaryPat.copy}, {newPattern = this.secondaryPat.copy});
 				this.varProb = this.varProb + 0.1;
+
 			}, {
 				this.varProb = 0.5;
-				newPattern = this.library.choose;
-				while ( { (newPattern == this.primaryPat.copy) ||(newPattern == this.secondaryPat.copy) },
-					{newPattern = this.library.choose.copy} )
+				newPattern = this.basicKSLibrary.choose;
+				while ( { (newPattern == this.primaryPat) ||(newPattern == this.secondaryPat) },
+					{newPattern = this.basicKSLibrary.choose;} )
 			}
 		);
-
-		// ["chose", newPattern.name, "old",oldVarProb, "now",this.varProb].postln;
 		^newPattern;
 	}
 	playNormal {
 		var next;
 		next = this.schedule.next;
 		if ( next == nil,
-			{// this.cleanRide();
-				this.currentPattern = this.chooseByGamblersFallacy.copy; this.currentPattern.name.postln },
+			{	this.currentPattern = DrumPlayer.build1BarPattern(this.chooseByGamblersFallacy());
+				this.currentPattern.name.postln },
 			{ this.currentPattern = next.copy; "played from sched".postln } );
 	}
 
 	playSingle {
-		if (this.currentPattern == nil, {
-			"no pattern selected, choosing this.library[1]".postln;
-			this.currentPattern = this.library[1]; });
 		["playing", this.currentPattern.name].postln;
 	}
 	scheduleRideVar {
 		// schedule 2 bars using 2 bar ride variation
-		var rideVar = this.rideLibrary.choose.copy, twoPatterns = Array.new(2);
+		var rideVar = this.rideLibrary.choose, twoPatterns = [nil,nil];
 
-		2.do { |pattern, i|
-			var selection, newPattern;
-			selection = this.chooseByGamblersFallacy();
-			newPattern = selection.copy;
-			// twoPatterns[i].name.postln;
-			[rideVar[i][0], rideVar[i][1]].postln;
-			newPattern.addOneDrum(rideVar[i][0],rideVar[i][1]);
-			twoPatterns = twoPatterns.add(newPattern);
+		2.do { |i|
+			var ks;
+			ks = this.chooseByGamblersFallacy();
+			twoPatterns[i] = DrumPlayer.build1BarPattern(ks, rideVar[i]);
+
 		};
 		this.schedule = Routine({twoPatterns.do {|pattern| pattern.yield}});
 
@@ -233,7 +228,7 @@ DrumPlayer {
 
 		d = DrumPattern.eighths[0]; u = DrumPattern.eighths[1];
 		this.rideLibrary = [
-		/*	// [0]
+		// [0]
 			[["ride", [[1],[d,\s],[u],[1],[d,\s],[u]]],
 				["ride", [[1],[1,\s], [1],[1,\s]]] ] ,
 			// [1]
@@ -241,70 +236,18 @@ DrumPlayer {
 				["ride", [[d],[u],[1,\s],[d],[u],[1,\s]]]],
 			// [2]
 			[["ride", [[1],[d,\s],[u],[1],[1,\s]]],
-				["ride", [[d],[u],[1,\s],[1],[d,\s],[u]]]],*/
-			// [fake]
-			[["ride", [[1],[1],[1],[1]]],
-				["ride", [[1],[1],[1],[1]]]]
+				["ride", [[d],[u],[1,\s],[1],[d,\s],[u]]]]
 		];
 	}
 
-	buildBasicLibrary{
-		// basic
-		this.library = this.library.add(DrumPattern.new("pat 1",4,[
-			["kick", [[2/3,\s],[1/3],[1,\r],[2/3,\s],[1/3],[1,\r]]],
-			["snare", [[1,\r],[2/3,\s],[1/3],[1,\r],[2/3,\s],[1/3]]]
-		] ) );
-		this.library = this.library.add(DrumPattern.new("pat 2", 4,[
-			["kick", [[2/3,\r],[1/3],[2/3,\r],[1/3],[2/3,\r],[1/3],[2/3,\r],[1/3]]],
-		    ["snare", [[1,\r],[1,\s],[1,\r],[1,\s]]]
-		] ) );
-		/*this.library = this.library.add(DrumPattern.new("pat 3", 4,[
-			["snare", [[2 + (1/3),\r],[1/3,\s],[1/3],[1,\r]]]
-		] ) );*/
-	/*	this.library = this.library.add(DrumPattern.new("pat 4", 4,[
-			["snare", [[1/3],[1/3],[(1/3),\r],[1,\r],[1/3],[1/3],[(1/3),\r],[1,\r]]],
-			["kick", [[2/3,\r],[1/3],[1,\r],[2/3,\r],[1/3],[1,\r]]]
-		] ) );*/
-		this.library = this.library.add(DrumPattern.new("pat 5", 4,[
-			["snare", [[2/3,\r],[1/3],[1/3,\r],[1/3],[1/3],[1,\r],[1,\s]]],
-			["kick", [[2,\r],[2/3,\r],[1/3],[1,\r]]]
-		] ) );
-		// comping
-		this.library = this.library.add(DrumPattern.new("pat 6",4,[
-			["kick", [[(1+(1/3))], [(1+(1/3))],[(1+(1/3))]]],
-			["snare", [[2/3], [1 +(1/3)], [1 +(1/3)], [2/3]]]
-		] ) );
-		this.library = this.library.add(DrumPattern.new("pat 7",4,[
-			["kick", [[2],[2]]],
-			["snare", [[2 +(1/3),\r], [1/3],[1 +(1/3)]]]
-		] ) );
-		this.library = this.library.add(DrumPattern.new("pat 8, poly1",4,[
-			["kick", [[(2/3),\r], [1], [1], [1],[(1/3)]]],
-			["snare", [[1/3],[1 +(2/3)],[1/3],[1 +(2/3)] ]]
-		] ) );
-		this.library = this.library.add(DrumPattern.new("pat 9",4,[
-			["kick", [[(2/3),\r], [1 +(1/3)], [2/3], [1 +(1/3)]]],
-			["snare", [[1,\r],[1 +(1/3),\s],[2/3],[1,\s] ]]
-		] ) );
-		this.library = this.library.add(DrumPattern.new("pat 10",4,[
-			["kick", [[1/3,\r],[2/3],[2/3,\s],[2/3],[2/3],[2/3,\s],[1/3]]],
-			["snare", [[2/3],[2/3],[2/3],[2/3],[2/3],[2/3]]]
-		] ) );
-	/*	this.library = this.library.add(DrumPattern.new("pat 11",4,[
-			["kick", [[(1/3), \r],[2],[1 +(2/3)]]],
-			["snare", [[1 +(1/3),\r], [2], [1/3,\s],[1/3]]]
-		] ) );*/
 
-
-
-	}
 	buildKSLibrary{
 		// basic
 		this.basicKSLibrary = [
 		["pat 1",4,[
 			["kick", [[2/3,\s],[1/3],[1,\r],[2/3,\s],[1/3],[1,\r]]],
 			["snare", [[1,\r],[2/3,\s],[1/3],[1,\r],[2/3,\s],[1/3]]]
-		] ]
+			] ],
 		["pat 2", 4,[
 			["kick", [[2/3,\r],[1/3],[2/3,\r],[1/3],[2/3,\r],[1/3],[2/3,\r],[1/3]]],
 		    ["snare", [[1,\r],[1,\s],[1,\r],[1,\s]]]
@@ -346,7 +289,7 @@ DrumPlayer {
 			["snare", [[1 +(1/3),\r], [2], [1/3,\s],[1/3]]]
 		] ) );*/
 
-		] // end of library
+		]; // end of library
 
 	}
 
