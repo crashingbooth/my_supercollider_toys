@@ -34,7 +34,7 @@ DrumPattern {
 
 
 	getDefaultRideAndHat {
-		this.addOneDrum("ride", [[1,],[DrumPattern.eighths[0],\s],[DrumPattern.eighths[1]],[1],[DrumPattern.eighths[0],\s],[DrumPattern.eighths[1]]]);
+		this.addOneDrum("ride", [[1],[DrumPattern.eighths[0],\s],[DrumPattern.eighths[1]],[1],[DrumPattern.eighths[0],\s],[DrumPattern.eighths[1]]]);
 		this.addOneDrum("closedhh", [[1,\r],[1,\s],[1,\r],[1,\s]])
 	}
 
@@ -55,29 +55,44 @@ DrumPattern {
 			this.addOneDrum(drumLine[0], drumLine[1]);
 		}
 	}
+
+	display {
+		this.drumArray.do { |line, i|
+			var lineStr = "";
+			line.do { |vals|
+				vals[0] = (vals.[0] + 0.00000001); // to prevent error for for short numbers :(
+				lineStr =  lineStr ++ "(" ++ vals[0].asStringPrec(2) ++ ", " ++ vals[1].asString ++ "),";
+			};
+			lineStr = lineStr[0..(lineStr.size -2)];
+			[DrumPattern.drumList[i], lineStr].postln;
+		}
+	}
 }
 
 DrumPlayer {
-	var <>midiout, <>beatLength, <>library, <>currentPattern, <>primaryPat, <>secondaryPat, <>barCount, <>playMode, <>varProb, <>rideLibrary, <>schedule;
+	var <>midiout, <>beatLength, <>library, <>currentPattern, <>primaryPat, <>secondaryPat, <>barCount, <>playMode, <>varProb, <>rideLibrary, <>schedule, <>verbose, <>tempoclock, <>basicKSLibrary;
 	classvar <>midiNumIndex;
 
-	*new{ |midiout|
-		^super.new.init (midiout) }
+	*new{ |midiout, beatLength|
+		^super.new.init (midiout,beatLength) }
 	*initClass {
 		DrumPlayer.midiNumIndex = [36, 38, 51, 46, 42, 37]; //kick, snare, ride, open, closed, rim
 	}
-	init { |midiout|
+	init { |midiout, beatLength|
 		this.midiout = midiout;
-		this.beatLength = 0.45;
+		this.beatLength = beatLength;
+		this.tempoclock = TempoClock.new(beatLength);
 
 		this.playMode = \playNormal; // or \playRandom, \playEntireLibrary, \playNormal, \playSingle
 		this.barCount = 0;
+		this.basicKSLibrary = Dictionary();
 		this.buildBasicLibrary();
 		this.buildRideLibrary();
 		this.schedule = Routine({});
 		this.currentPattern = this.library[0];
 		this.primaryPat = this.library[0];
 		this.secondaryPat = this.library[1];
+		this.verbose = true;
 		this.varProb = 0.5;
 	}
 
@@ -94,12 +109,14 @@ DrumPlayer {
 			{ this.secondaryPat = this.library.choose},
 			{ this.secondaryPat = secondary } );
 		while ( {this.primaryPat == this.secondaryPat }, { this.secondaryPat = this.library.choose } );
-		["Primary", this.primaryPat.name, "Secondary", this.secondaryPat.name].postln;
+		if (this.verbose, {
+			["Primary", this.primaryPat.name, "Secondary", this.secondaryPat.name].postln; });
 
 	}
 
 	playEntireLibrary { |drumNumber, reps = 4|
-		this.currentPattern = this.library.wrapAt((this.barCount / reps).asInteger);
+		var nextPattern;
+		this.currentPattern = this.library.wrapAt((this.barCount / reps).asInteger).copy;
 		postf("currently playing % \n", this.currentPattern.name);
 	}
 
@@ -124,7 +141,7 @@ DrumPlayer {
 		var next;
 		next = this.schedule.next;
 		if ( next == nil,
-			{ this.cleanRide();
+			{// this.cleanRide();
 				this.currentPattern = this.chooseByGamblersFallacy.copy; this.currentPattern.name.postln },
 			{ this.currentPattern = next.copy; "played from sched".postln } );
 	}
@@ -138,6 +155,7 @@ DrumPlayer {
 	scheduleRideVar {
 		// schedule 2 bars using 2 bar ride variation
 		var rideVar = this.rideLibrary.choose.copy, twoPatterns = Array.new(2);
+
 		2.do { |pattern, i|
 			var selection, newPattern;
 			selection = this.chooseByGamblersFallacy();
@@ -155,7 +173,7 @@ DrumPlayer {
 	}
 
 	decideNext {
-
+		// this.tempoclock.nextBar();
 		case
 		{ this.playMode == \playRandom} {this.playRandomPatterns()}
 		{ this.playMode == \playEntireLibrary} {this.playEntireLibrary()}
@@ -164,14 +182,13 @@ DrumPlayer {
 		if ((this.barCount % 8) == 0, {["barCount", this.barCount].postln; this.scheduleRideVar()});
 		this.barCount = this.barCount + 1;
 
+		this.currentPattern.display();
 	}
+
 	processPattern { |drumNumber|
-		// Builds Pseq readable list from currentPattern - always called! also changes curPATTERN
+		// Builds Pseq readable list from currentPattern - always called!
 		// [midiNote, dur, amp] or [\rest, dur, 0]
 		var drumLine, output = [];
-
-		// change this.cuurentPattern based on this.playMode
-		if (drumNumber == (DrumPlayer.midiNumIndex.size-1), {this.decideNext});
 
 		drumLine = this.currentPattern.[drumNumber];
 		if (drumLine.size == 0, {output = [[\rest, this.currentPattern.length, 0]]}, {
@@ -179,16 +196,18 @@ DrumPlayer {
 
 				if (event[1] == 0, {output = output.add([\rest, event[0], 0])},
 					{output = output.add([DrumPlayer.midiNumIndex[drumNumber], event[0], event[1]])})
-		};});
 
+		};});
 
 		^output;
 	}
 
 
 	playPattern { |mode = nil|
-		var pbs = [];
-
+		var pbs = [], beatsched;
+		beatsched = BeatSched.new(tempoClock:this.tempoclock);
+		beatsched.beat = 0;
+		beatsched.qsched(3.99,{  this.decideNext; 4 });
 		DrumPlayer.midiNumIndex.do { |drumNum, i|
 			pbs = pbs.add( Pbind (
 				\type, \midi,
@@ -196,9 +215,9 @@ DrumPlayer {
 				[\midinote, \dur, \raw_amp], Pn(Plazy{Pseq(this.processPattern(i))}),
 				\amp, Pkey(\raw_amp) + Pwhite(-0.02, 0.02),
 				\chan, 1,
-				\stretch, this.beatLength,
+				// \stretch, this.beatLength,
 				\lag, Pwhite(-0.02, 0.02)
-				).play;
+				).play(this.tempoclock);
 		) };
 	}
 	varyHihat {
@@ -214,7 +233,7 @@ DrumPlayer {
 
 		d = DrumPattern.eighths[0]; u = DrumPattern.eighths[1];
 		this.rideLibrary = [
-			// [0]
+		/*	// [0]
 			[["ride", [[1],[d,\s],[u],[1],[d,\s],[u]]],
 				["ride", [[1],[1,\s], [1],[1,\s]]] ] ,
 			// [1]
@@ -222,7 +241,10 @@ DrumPlayer {
 				["ride", [[d],[u],[1,\s],[d],[u],[1,\s]]]],
 			// [2]
 			[["ride", [[1],[d,\s],[u],[1],[1,\s]]],
-				["ride", [[d],[u],[1,\s],[1],[d,\s],[u]]]]
+				["ride", [[d],[u],[1,\s],[1],[d,\s],[u]]]],*/
+			// [fake]
+			[["ride", [[1],[1],[1],[1]]],
+				["ride", [[1],[1],[1],[1]]]]
 		];
 	}
 
@@ -252,10 +274,10 @@ DrumPlayer {
 			["kick", [[(1+(1/3))], [(1+(1/3))],[(1+(1/3))]]],
 			["snare", [[2/3], [1 +(1/3)], [1 +(1/3)], [2/3]]]
 		] ) );
-	/*	this.library = this.library.add(DrumPattern.new("pat 7",4,[
+		this.library = this.library.add(DrumPattern.new("pat 7",4,[
 			["kick", [[2],[2]]],
 			["snare", [[2 +(1/3),\r], [1/3],[1 +(1/3)]]]
-		] ) );*/
+		] ) );
 		this.library = this.library.add(DrumPattern.new("pat 8, poly1",4,[
 			["kick", [[(2/3),\r], [1], [1], [1],[(1/3)]]],
 			["snare", [[1/3],[1 +(2/3)],[1/3],[1 +(2/3)] ]]
@@ -274,6 +296,57 @@ DrumPlayer {
 		] ) );*/
 
 
+
+	}
+	buildKSLibrary{
+		// basic
+		this.basicKSLibrary = [
+		["pat 1",4,[
+			["kick", [[2/3,\s],[1/3],[1,\r],[2/3,\s],[1/3],[1,\r]]],
+			["snare", [[1,\r],[2/3,\s],[1/3],[1,\r],[2/3,\s],[1/3]]]
+		] ]
+		["pat 2", 4,[
+			["kick", [[2/3,\r],[1/3],[2/3,\r],[1/3],[2/3,\r],[1/3],[2/3,\r],[1/3]]],
+		    ["snare", [[1,\r],[1,\s],[1,\r],[1,\s]]]
+			] ],
+		/*this.library = this.library.add(DrumPattern.new("pat 3", 4,[
+			["snare", [[2 + (1/3),\r],[1/3,\s],[1/3],[1,\r]]]
+		] ) );*/
+	/*	this.library = this.library.add(DrumPattern.new("pat 4", 4,[
+			["snare", [[1/3],[1/3],[(1/3),\r],[1,\r],[1/3],[1/3],[(1/3),\r],[1,\r]]],
+			["kick", [[2/3,\r],[1/3],[1,\r],[2/3,\r],[1/3],[1,\r]]]
+		] ) );*/
+		["pat 5", 4,[
+			["snare", [[2/3,\r],[1/3],[1/3,\r],[1/3],[1/3],[1,\r],[1,\s]]],
+			["kick", [[2,\r],[2/3,\r],[1/3],[1,\r]]]
+			] ],
+		// comping
+		["pat 6",4,[
+			["kick", [[(1+(1/3))], [(1+(1/3))],[(1+(1/3))]]],
+			["snare", [[2/3], [1 +(1/3)], [1 +(1/3)], [2/3]]]
+			] ],
+		["pat 7",4,[
+			["kick", [[2],[2]]],
+			["snare", [[2 +(1/3),\r], [1/3],[1 +(1/3)]]]
+			] ],
+		["pat 8, poly1",4,[
+			["kick", [[(2/3),\r], [1], [1], [1],[(1/3)]]],
+			["snare", [[1/3],[1 +(2/3)],[1/3],[1 +(2/3)] ]]
+			] ],
+		["pat 9",4,[
+			["kick", [[(2/3),\r], [1 +(1/3)], [2/3], [1 +(1/3)]]],
+			["snare", [[1,\r],[1 +(1/3),\s],[2/3],[1,\s] ]]
+			] ],
+		["pat 10",4,[
+			["kick", [[1/3,\r],[2/3],[2/3,\s],[2/3],[2/3],[2/3,\s],[1/3]]],
+			["snare", [[2/3],[2/3],[2/3],[2/3],[2/3],[2/3]]]
+			] ]
+	/*	this.library = this.library.add(DrumPattern.new("pat 11",4,[
+			["kick", [[(1/3), \r],[2],[1 +(2/3)]]],
+			["snare", [[1 +(1/3),\r], [2], [1/3,\s],[1/3]]]
+		] ) );*/
+
+		] // end of library
 
 	}
 
