@@ -1,9 +1,9 @@
 ModalBass {
-	var <>prev, <>prev2, <>note, <>scale, <>octaveSize, <>phraseLength, <>charNote, <>charNoteDict, <>root, <>dur, <>skipLastBeat, <>midiout, <>beatLength, <>legato, <>offset, <>asc, <>usedChromaticArr, <>onDeck, <>verbose, <>channel,
+	var <>prev, <>prev2, <>note, <>scale, <>octaveSize, <>phraseLength, <>charNote, <>charNoteDict, <>root, <>dur, <>skipLastBeat, <>midiout, <>tempoclock,<>legato, <>offset, <>asc, <>usedChromaticArr, <>onDeck, <>verbose, <>channel,
 	<>behaviour;
-	*new {|scale, root, phraseLength, midiout|
-		^super.new.init(scale, root, phraseLength, midiout) }
-	init { |scale, root, phraseLength = 8, midiout|
+	*new {|scale, root, phraseLength, midiout, tempoclock|
+		^super.new.init(scale, root, phraseLength, midiout, tempoclock) }
+	init { |scale, root, phraseLength = 8, midiout, tempoclock|
 		this.charNoteDict = Dictionary.newFrom(
 			List["Scale.ionian", 3,
 				"Scale.dorian", 5,
@@ -15,7 +15,8 @@ ModalBass {
 		this.setScale(scale);
 		this.root = root;
 		this.offset = -24;
-		this.beatLength = 0.45;
+		if (tempoclock == nil,
+			{ this.tempoclock = TempoClock.new(132/60)}, { this.tempoclock = tempoclock });
 		this.legato = 0.75; // \sustain = \dur * \legato
 		this.phraseLength = phraseLength;
 		this.midiout = midiout;
@@ -234,10 +235,10 @@ ModalBass {
 			\root, Pn(Plazy{this.root}) + this.offset,
 			\scale, Pn(Plazy{this.scale}),
 			\legato, Pn(Plazy{this.legato}),
-			\stretch, this.beatLength,
+			// \stretch, this.beatLength,
 
 			\amp, 0.3
-		).play;
+		).play(this.tempoclock);
 	}
 	displayPhrase { |phrase|
 
