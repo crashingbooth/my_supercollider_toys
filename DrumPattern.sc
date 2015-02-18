@@ -8,7 +8,7 @@ DrumPattern {
 	*initClass {
 		// amp of 0.5 will be default volume
 		DrumPattern.accentDict = Dictionary.newFrom(List[\s, 0.62, \w, 0.3,  \n, 0.5, \vs, 0.8, \r, 0]);
-		DrumPattern.drumList = ["kick","snare","ride","openhh", "closedhh","rim"];
+		DrumPattern.drumList = ["kick","snare","ride","openhh", "closedhh","rim","midtom", "hightom"];
 		DrumPattern.drumIndexDict = Dictionary();
 		DrumPattern.drumList.do {|name, i| DrumPattern.drumIndexDict[name] = i} ;
 		DrumPattern.setSwing(2.7);
@@ -71,32 +71,28 @@ DrumPattern {
 }
 
 DrumPlayer {
-	var <>midiout, <>beatLength, <>library, <>currentPattern, <>primaryPat, <>secondaryPat, <>barCount, <>playMode, <>varProb, <>rideLibrary, <>schedule, <>verbose, <>tempoclock, <>basicKSLibrary;
+	var <>midiout, <>tempoclock, <>library, <>currentPattern, <>primaryPat, <>secondaryPat, <>barCount, <>playMode, <>varProb, <>rideLibrary, <>schedule, <>verbose, <>tempoclock, <>basicKSLibrary;
 	classvar <>midiNumIndex;
 
-	*new{ |midiout, beatLength|
-		^super.new.init (midiout,beatLength) }
+	*new{ |midiout, tempoclock|
+		^super.new.init (midiout, tempoclock) }
 	*initClass {
-		DrumPlayer.midiNumIndex = [36, 38, 51, 46, 42, 37]; //kick, snare, ride, open, closed, rim
+		DrumPlayer.midiNumIndex = [36, 38, 51, 46, 42, 37, 45, 44]; //kick, snare, ride, open, closed, rim, lowtom, hightom
 	}
-	init { |midiout, beatLength|
+	init { |midiout, tempoclock|
 		this.midiout = midiout;
-		this.beatLength = beatLength;
-		this.tempoclock = TempoClock.new(beatLength);
+		if (tempoclock == nil, { this.tempoclock = TempoClock.new(132/60)}, { this.tempoclock = tempoclock });
 
 		this.playMode = \playNormal; // or \playRandom, \playEntireLibrary, \playNormal, \playSingle
 		this.barCount = 0;
-		// this.basicKSLibrary = [];
-		this.buildKSLibrary();
+		this.buildKSLibrary(); //kick -snare library
 
 		this.buildRideLibrary();
 		this.schedule = Routine({});
 		this.currentPattern = DrumPlayer.build1BarPattern(this.basicKSLibrary[0]);
-		/*this.primaryPat = this.library[0];
-		this.secondaryPat = this.library[1];*/
 		this.primaryPat = this.basicKSLibrary[0];
 		this.secondaryPat = this.basicKSLibrary[0];
-		this.verbose = true;
+		this.verbose = false;
 		this.varProb = 0.5;
 	}
 
@@ -145,10 +141,17 @@ DrumPlayer {
 			{	this.currentPattern = DrumPlayer.build1BarPattern(this.chooseByGamblersFallacy());
 				this.currentPattern.name.postln },
 			{ this.currentPattern = next.copy; "played from sched".postln } );
+		if (((this.barCount % 4) == 2) &&  (3.rand > 0),
+			{this.currentPattern = DrumPlayer.generatePattern; "custom".postln});
 	}
 
 	playSingle {
 		["playing", this.currentPattern.name].postln;
+	}
+
+	playRegenerateCustom {
+		if ((this.barCount % 2) == 1,
+			{ this.currentPattern = DrumPlayer.generatePattern });
 	}
 	scheduleRideVar {
 		// schedule 2 bars using 2 bar ride variation
@@ -163,21 +166,19 @@ DrumPlayer {
 		this.schedule = Routine({twoPatterns.do {|pattern| pattern.yield}});
 
 	}
-	cleanRide {
-		this.library.do {|self| self.getDefaultRideAndHat(); }
-	}
+
 
 	decideNext {
-		// this.tempoclock.nextBar();
 		case
 		{ this.playMode == \playRandom} {this.playRandomPatterns()}
 		{ this.playMode == \playEntireLibrary} {this.playEntireLibrary()}
 		{ this.playMode == \playNormal} {this.playNormal()}
-		{ this.playMode == \playSingle } {this.playSingle()};
+		{ this.playMode == \playSingle } {this.playSingle()}
+		{ this.playMode == \playCustom } {this.playRegenerateCustom()};
 		if ((this.barCount % 8) == 0, {["barCount", this.barCount].postln; this.scheduleRideVar()});
 		this.barCount = this.barCount + 1;
 
-		this.currentPattern.display();
+		if (this.verbose, {this.currentPattern.display();});
 	}
 
 	processPattern { |drumNumber|
@@ -191,7 +192,6 @@ DrumPlayer {
 
 				if (event[1] == 0, {output = output.add([\rest, event[0], 0])},
 					{output = output.add([DrumPlayer.midiNumIndex[drumNumber], event[0], event[1]])})
-
 		};});
 
 		^output;
@@ -210,18 +210,53 @@ DrumPlayer {
 				[\midinote, \dur, \raw_amp], Pn(Plazy{Pseq(this.processPattern(i))}),
 				\amp, Pkey(\raw_amp) + Pwhite(-0.02, 0.02),
 				\chan, 1,
-				// \stretch, this.beatLength,
 				\lag, Pwhite(-0.02, 0.02)
 				).play(this.tempoclock);
 		) };
 	}
-	varyHihat {
-		var temp;
-		temp = this.currentPattern.copy;
-		temp.addOneDrum("ride",  [[2/3,\s],[2/3,\s],[2/3,\s],[1,\s,],[2/3],[1/3]]);
-		"ridevar".postln;
-		this.currentPattern = temp.copy;
+	*generatePattern {
+		// ride will play quarters, make 6 slot array gen pattern from KSRH, either repeat or mutate
+		// then build pattern from 12 slot array
+		var choices = ["snare", "kick", "closedhh", "midtom", "hightom","rest"],
+		initialArray = [], secondhalf, accent1 = 6.rand, accent2 = 6.rand;
 
+		6.do { |i|
+			var acc = \n;
+			if ( (i == accent1) || (i == accent2), { acc = \s } );
+			initialArray = initialArray.add([choices.choose, acc]);
+		};
+		secondhalf = initialArray.copy;
+
+		if (2.rand == 0,
+			{ var change1 = 6.rand, change2 = 6.rand;
+				secondhalf[change1][0] = choices.choose;
+				secondhalf[change2][0] = choices.choose; });
+
+
+
+		^DrumPlayer.monoListToPattern(initialArray ++ secondhalf);
+	}
+
+	*monoListToPattern { |monoList, name = "generated pattern"|
+		var drumArray, template, outPattern;
+		drumArray = Array.fill (DrumPattern.drumList.size { [] });
+
+
+		monoList.do { |event, stepNum|
+			drumArray.do { |arraySoFar, arraySlotNum |
+				if (DrumPattern.drumIndexDict[event[0].asString] == arraySlotNum,
+					{ drumArray[arraySlotNum] = drumArray[arraySlotNum].add([1/3, event[1]]) },
+					{ drumArray[arraySlotNum] = drumArray[arraySlotNum].add([1/3, \r]) } );
+			}
+		};
+		template = [];
+		DrumPattern.drumList.do { |drumName, i|
+			template = template.add([drumName, drumArray[i]]);
+		};
+
+		outPattern = DrumPattern.new( name,monoList.size/3, template);
+		outPattern.getDefaultRideAndHat();
+		^outPattern
 	}
 	buildRideLibrary {
 		var d, u; // i.e., downbeat, upbeat
@@ -236,7 +271,9 @@ DrumPlayer {
 				["ride", [[d],[u],[1,\s],[d],[u],[1,\s]]]],
 			// [2]
 			[["ride", [[1],[d,\s],[u],[1],[1,\s]]],
-				["ride", [[d],[u],[1,\s],[1],[d,\s],[u]]]]
+				["ride", [[d],[u],[1,\s],[1],[d,\s],[u]]]],
+			[["ride", [[1],[d,\s],[u],[1],[1,\s]]],
+				["ride", [[1],[1],[1],[1]]]]
 		];
 	}
 
@@ -283,6 +320,14 @@ DrumPlayer {
 		["pat 10",4,[
 			["kick", [[1/3,\r],[2/3],[2/3,\s],[2/3],[2/3],[2/3,\s],[1/3]]],
 			["snare", [[2/3],[2/3],[2/3],[2/3],[2/3],[2/3]]]
+			] ],
+		["pat 11a",4,[
+			["kick", [[1/3],[1],[1/3],[1],[1/3],[1]]],
+			["snare", [[2/3,\r],[1/3],[1/3],[2/3,\r],[1/3],[1/3],[2/3,\r],[1/3],[1/3]]]
+			] ],
+		["pat 11b",4,[
+			["snare", [[1/3],[1],[1/3],[1],[1/3],[1]]],
+			["kick", [[2/3,\r],[1/3],[1/3],[2/3,\r],[1/3],[1/3],[2/3,\r],[1/3],[1/3]]]
 			] ]
 	/*	this.library = this.library.add(DrumPattern.new("pat 11",4,[
 			["kick", [[(1/3), \r],[2],[1 +(2/3)]]],
