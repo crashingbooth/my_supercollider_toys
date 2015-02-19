@@ -12,6 +12,7 @@ ModalBass {
 				"Scale.mixolydian", 6,
 				"Scale.aeolian", 5,
 				"Scale.locrian", [1,4].choose,]);
+		// this.note = 0;
 		this.setScale(scale);
 		this.root = root;
 		this.offset = -24;
@@ -29,18 +30,46 @@ ModalBass {
 		this.dur = 1;
 		this.prev = 0;
 		this.prev2 = 0;
-		this.note = 0;
 		this.asc = 0;
+		this.note = 0;
 	}
 
 	setScale { |scale, root = nil|
+		var realPitch, finalPitch;
+		// get absolute note value
+		if (this.note != nil, {
+			realPitch =  ModalBass.getRealPitch(this.note, this.scale, this.root);});
 		this.scale = scale;
 		this.charNote = this.charNoteDict[scale.asString];
 		this.octaveSize = scale.size;
+
 		if (root != nil, {this.root = root});
+		["scale changed to", this.scale, this.root].postln;
+		if (this.note != nil, {
+			this.note = ModalBass.getDegreeFromPitch(realPitch, this.scale, this.root);});
+
+	}
+
+	*getRealPitch { |note, scale, root|
+		var res, semitone = 0;
+		if ((note % 1) > 0 , {semitone = 1});
+		res = (scale.performDegreeToKey(note) + root + semitone);
+		^res;
+	}
+	*getDegreeFromPitch {|note, scale, root|
+		var res;
+		res = scale.performKeyToDegree(note - root);
+		^res;
+	}
+
+
+	prepareNextMode { |scale, root|
+		this.onDeck = [scale, root];
+		// ["onDeck set to", scale, root].postln;
 	}
 	makeFirstBeat {
-		var beatPhrase;
+		var beatPhrase, prevLast;
+		"new Phrase".postln;
 		if (this.prev >= (this.octaveSize - 1),
 			{ this.note = this.octaveSize; this.asc = [-1,0].choose; },
 			{ this.note = 0; this.asc = [1,0].choose; }
@@ -58,7 +87,9 @@ ModalBass {
 			{ beatPhrase = [[this.note, this.dur]] }
 		);
 		this.prev2 = this.prev;
+		if (this.prev == this.note, {"REPEATED NOTE!"});
 		this.prev = this.note;
+
 		^beatPhrase;
 	}
 
@@ -94,29 +125,42 @@ ModalBass {
 
 	chooseFinalNote {
 		// returns note only, does not change globals
-		var note, octave = (this.note/this.octaveSize).asInteger, distance = this.distanceFromTonic(), direction, chromatic = 0;
+		var note, octave = (this.note/this.octaveSize).asInteger, distance, direction, chromatic = 0, debug;
+
+		["IN CFN top", this.root].postln;
+		["IN CFN before",this.note, this.distanceFromTonic(this.note)].postln;
+		// change tonic early if mode/root is changing next phrase
+		if (this.onDeck != [this.scale, this.root], {this.setScale(this.onDeck[0], this.onDeck[1]); "changedearly".postln;});
+		["IN CFN after", this.note, this.distanceFromTonic(this.note)].postln;
+		distance = this.distanceFromTonic(this.note);
 
 		if (distance > 0, {direction = 1 }, {direction = -1});
 		if ((this.note > 0 ) && (direction < 0), {octave = octave +1 }); //hacky
 
 		case
-		{ abs(distance) > 2 }  { note = [-1,1].choose; }
-		{ abs(distance) == 1 } { note = (-1 * direction) } // change direction
+		{ abs(distance) > 2 }  { note = [-1,1].choose; debug = 0}
+		{ abs(distance) == 1 } { note = (-1 * direction); debug =1 } // change direction
+		{ abs(distance) == 0.5 } {note = (-1 * direction); debug =2 }
+		{ abs(distance) == 0 } { note = [-1,1].choose; debug =3}
 		{ abs(distance) == 2 } {
 			if (this.shouldUseChromatic,
-				{ note = 0.1 * direction; chromatic = 1  },
-				{ note = -1 * direction; } )
+				{ note = 0.5 * direction; chromatic = 1  },
+				{ note = (-1 * direction); } ); debug = 4;
 			};
+
+
 		this.updateUsedChromatic(chromatic);
 		//restore original octave:
 		note = note + (this.octaveSize * octave);
+		["Took Path", debug].postln;
+		["IN CFN bottom", this.root,"dist", this.distanceFromTonic(note), note].postln;
 		^note;
 
 	}
 	shouldUseChromatic {
 		// return false if just used or more than 3 of last 8
 		if ((this.usedChromaticArr.sum > 3) || (this.usedChromaticArr[0] == 1),
-			{ "refused chromatic".postln;^false}, {"accepted chromatic".postln;^true});
+			{ ^false}, { ^true});
 
 		}
 	updateUsedChromatic { |used| // 1 or 0
@@ -176,12 +220,14 @@ ModalBass {
 		^phrase;
 	}
 
-	distanceFromTonic {
+	distanceFromTonic { |note|
 		// called in chooseFinalNote
-		var interval;
-		interval = (this.scale[this.note] - this.scale[0]);
+		var interval, releventTonic, semitone = 0;
+		if ((note % 1) > 0, {semitone = 1});
+		interval = (this.scale[note] - this.scale[0]);
 
-		if ( interval > 6, {interval = (interval - 12)});
+		if ( interval > 6, {interval = (interval - 12 - semitone)},
+			{interval = interval + semitone});
 		^interval;
 	}
 
