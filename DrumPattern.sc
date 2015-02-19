@@ -139,10 +139,10 @@ DrumPlayer {
 		next = this.schedule.next;
 		if ( next == nil,
 			{	this.currentPattern = DrumPlayer.build1BarPattern(this.chooseByGamblersFallacy());
-				this.currentPattern.name.postln },
-			{ this.currentPattern = next.copy; "played from sched".postln } );
-		if (((this.barCount % 4) == 2) &&  (3.rand > 0),
-			{this.currentPattern = DrumPlayer.generatePattern; "custom".postln});
+				if (this.verbose,{	this.currentPattern.name.postln });},
+			{ this.currentPattern = next.copy; } );
+		/*if (((this.barCount % 4) == 2) &&  (3.rand > 0),
+			{this.currentPattern = DrumPlayer.generatePattern;});*/
 	}
 
 	playSingle {
