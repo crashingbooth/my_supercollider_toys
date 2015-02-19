@@ -23,7 +23,7 @@ Conductor {
 
 	executeChart { |chordChart|
 		// entries in the form [scale, root, numPatterns]
-		var expandedChart = [], sched, beatsched;
+		var expandedChart = [], mainSched, onDeckChart, onDeckSched;
 		chordChart.do { |event, i|
 			var counter = 1;
 			expandedChart = expandedChart.add([event[0], event[1]]);
@@ -31,19 +31,29 @@ Conductor {
 				{ expandedChart = expandedChart.add([]);
 					counter = counter + 1} );
 		};
+		onDeckChart = expandedChart.rotate(-1);
 
-		sched = Routine({expandedChart.do {|oneBar|
+
+		mainSched = Routine({expandedChart.do {|oneBar|
 			oneBar.yield}});
 
-		this.tempoclock.schedAbs(4,{ var nextEvent = sched.next;
-			if (nextEvent == nil,  {sched.reset; nextEvent = sched.next});
-			this.handleChartRoutine(nextEvent); 8 });
+		onDeckSched = Routine({onDeckChart.do {|oneBar|
+			oneBar.yield}});
+
+		this.tempoclock.schedAbs(0,{ var nextEvent = mainSched.next, nextOnDeck = onDeckSched.next;
+			if (nextEvent == nil,
+				{ mainSched.reset; nextEvent = mainSched.next;
+				  onDeckSched.reset; nextOnDeck = onDeckSched.next;});
+
+			this.handleChartRoutine(nextEvent, nextOnDeck); 8 });
 	}
 
-	handleChartRoutine { |event, routine|
-
-		if (event != [], {this.bass.setScale(event[0], event[1])});
-
+	handleChartRoutine { |event, onDeckEvent|
+		// [this.tempoclock.beats, event, onDeckEvent].postln;
+	/*	if (event != [], { //["C - change to", event[0], event[1]].postln;
+			this.bass.setScale(event[0], event[1]); });*/
+		if (onDeckEvent != [], { //["C - onDeck to", onDeckEvent[0], onDeckEvent[1]].postln;
+			this.bass.prepareNextMode(onDeckEvent[0], onDeckEvent[1]); } );
 	}
 
 }
