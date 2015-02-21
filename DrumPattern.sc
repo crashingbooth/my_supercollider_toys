@@ -2,8 +2,8 @@ DrumPattern {
 	var  <>length, <>drumArray, <>name;
 	classvar <>drumIndexDict, <>accentDict, <>drumList, <>swingRatio, <>eighths;
 
-	*new { |name, length, drumParts|
-		^super.new.init (name, length, drumParts) }
+	*new { |name, length, drumParts, getDefaultRide =true|
+	^super.new.init (name, length, drumParts, getDefaultRide) }
 
 	*initClass {
 		// amp of 0.5 will be default volume
@@ -14,12 +14,13 @@ DrumPattern {
 		DrumPattern.setSwing(2.7);
 	}
 
-	init { |name = "unnamed", length = 4, drumParts |
+	init { |name = "unnamed", length = 4, drumParts, getDefaultRide|
 		// amp of 0.5 will be default volume
 		this.name = name;
 		this.drumArray = Array.fill(DrumPattern.drumList.size,{[]});
 		this.length = length;
-		this.getDefaultRideAndHat();
+		if (getDefaultRide, {
+			this.getDefaultRideAndHat();});
 		this.getMultipleDrums(drumParts);
 
 	}
@@ -75,7 +76,7 @@ DrumPlayer {
 	classvar <>midiNumIndex;
 
 	*new{ |midiout, tempoclock|
-		^super.new.init (midiout, tempoclock) }
+	^super.new.init (midiout, tempoclock) }
 	*initClass {
 		DrumPlayer.midiNumIndex = [36, 38, 51, 46, 42, 37, 45, 44]; //kick, snare, ride, open, closed, rim, lowtom, hightom
 	}
@@ -129,7 +130,7 @@ DrumPlayer {
 				this.varProb = 0.5;
 				newPattern = this.basicKSLibrary.choose;
 				while ( { (newPattern == this.primaryPat) ||(newPattern == this.secondaryPat) },
-					{newPattern = this.basicKSLibrary.choose;} )
+				{newPattern = this.basicKSLibrary.choose;} )
 			}
 		);
 		^newPattern;
@@ -137,12 +138,16 @@ DrumPlayer {
 	playNormal {
 		var next;
 		next = this.schedule.next;
+		postln(["barCount", this.barCount]);
 		if ( next == nil,
 			{	this.currentPattern = DrumPlayer.build1BarPattern(this.chooseByGamblersFallacy());
-				if (this.verbose,{	this.currentPattern.name.postln });},
-			{ this.currentPattern = next.copy; } );
+			if (this.verbose,{	this.currentPattern.name.postln });},
+		{ this.currentPattern = next.copy; } );
 		/*if (((this.barCount % 4) == 2) &&  (3.rand > 0),
-			{this.currentPattern = DrumPlayer.generatePattern;});*/
+		{this.currentPattern = DrumPlayer.generatePattern;});*/
+		if ((this.barCount % 16) == 6, {this.elvinJonesFill(1)});
+		if ((this.barCount % 16) == 13, {this.elvinJonesFill(2)});
+
 	}
 
 	playSingle {
@@ -151,8 +156,9 @@ DrumPlayer {
 
 	playRegenerateCustom {
 		if ((this.barCount % 2) == 1,
-			{ this.currentPattern = DrumPlayer.generatePattern });
+		{ this.currentPattern = DrumPlayer.generatePattern });
 	}
+
 	scheduleRideVar {
 		// schedule 2 bars using 2 bar ride variation
 		var rideVar = this.rideLibrary.choose, twoPatterns = [nil,nil];
@@ -169,14 +175,15 @@ DrumPlayer {
 
 
 	decideNext {
+		this.barCount = this.barCount + 1;
 		case
 		{ this.playMode == \playRandom} {this.playRandomPatterns()}
 		{ this.playMode == \playEntireLibrary} {this.playEntireLibrary()}
 		{ this.playMode == \playNormal} {this.playNormal()}
 		{ this.playMode == \playSingle } {this.playSingle()}
 		{ this.playMode == \playCustom } {this.playRegenerateCustom()};
-		if ((this.barCount % 8) == 0, {["barCount", this.barCount].postln; this.scheduleRideVar()});
-		this.barCount = this.barCount + 1;
+		if (((this.barCount % 8) == 0), {["barCount", this.barCount].postln; this.scheduleRideVar()});
+
 
 		if (this.verbose, {this.currentPattern.display();});
 	}
@@ -191,7 +198,7 @@ DrumPlayer {
 			drumLine.do { |event, i| //event is [dur, amp (or rest symbol)]
 
 				if (event[1] == 0, {output = output.add([\rest, event[0], 0])},
-					{output = output.add([DrumPlayer.midiNumIndex[drumNumber], event[0], event[1]])})
+				{output = output.add([DrumPlayer.midiNumIndex[drumNumber], event[0], event[1]])})
 		};});
 
 		^output;
@@ -230,7 +237,7 @@ DrumPlayer {
 		if (2.rand == 0,
 			{ var change1 = 6.rand, change2 = 6.rand;
 				secondhalf[change1][0] = choices.choose;
-				secondhalf[change2][0] = choices.choose; });
+		secondhalf[change2][0] = choices.choose; });
 
 
 
@@ -246,7 +253,7 @@ DrumPlayer {
 			drumArray.do { |arraySoFar, arraySlotNum |
 				if (DrumPattern.drumIndexDict[event[0].asString] == arraySlotNum,
 					{ drumArray[arraySlotNum] = drumArray[arraySlotNum].add([1/3, event[1]]) },
-					{ drumArray[arraySlotNum] = drumArray[arraySlotNum].add([1/3, \r]) } );
+				{ drumArray[arraySlotNum] = drumArray[arraySlotNum].add([1/3, \r]) } );
 			}
 		};
 		template = [];
@@ -258,22 +265,70 @@ DrumPlayer {
 		outPattern.getDefaultRideAndHat();
 		^outPattern
 	}
+
+	elvinJonesFill { |size = 2|
+		var metersArr, inflatedArr = [], outPatternArr, numTrips = (12*size), drumOrder, drumCount = 0, drumArray;
+		// drumOrder = ["hightom","midtom","snare"].scramble;
+		drumOrder = ["hightom","midtom","snare"].scramble;
+		outPatternArr = [];
+		drumArray = Array.fill (DrumPattern.drumList.size { [] });
+		metersArr = Array.fill (2, {5.rand  + 2 });
+		while ({inflatedArr.size < numTrips},
+			{
+				metersArr.do { |currentMeter|
+					inflatedArr = inflatedArr.add("acc");
+					(1..(currentMeter-1)).do { inflatedArr = inflatedArr.add(drumOrder.wrapAt(drumCount)); drumCount = drumCount + 1; };
+					// drumCount = drumCount + 1;
+				}
+		});
+
+		// cut off extra
+		inflatedArr = inflatedArr[0..(numTrips -1)];
+
+		inflatedArr.do { |event, stepNum|
+			var kick = 0, ride = 2;
+			drumArray.do { |arraySoFar, arraySlotNum |
+				if (DrumPattern.drumIndexDict[event.asString] == arraySlotNum,
+					{ drumArray[arraySlotNum] = drumArray[arraySlotNum].add([1/3, \n]) },
+				{ drumArray[arraySlotNum] = drumArray[arraySlotNum].add([1/3, \r]) } );
+
+			};
+			if (event == "acc", {
+					drumArray[kick][drumArray[ride].size -1] = [1/3, \s];
+					drumArray[ride][drumArray[ride].size -1] = [1/3, \s];
+					});
+		};
+
+
+		size.do { |barNum|
+			var template = [];
+			DrumPattern.drumList.do {  |drumName, i|
+				template = template.add([drumName, drumArray[i][(barNum * 12)..(barNum * 12 + 11)]]);
+
+			};
+			outPatternArr = outPatternArr.add(DrumPattern("elvin jones fill", 4, template, false));
+		};
+		// ^outPatternArr;
+		this.schedule = Routine({outPatternArr.do {|pattern| pattern.yield}});
+
+	}
+
 	buildRideLibrary {
 		var d, u; // i.e., downbeat, upbeat
 
 		d = DrumPattern.eighths[0]; u = DrumPattern.eighths[1];
 		this.rideLibrary = [
-		// [0]
+			// [0]
 			[["ride", [[1],[d,\s],[u],[1],[d,\s],[u]]],
-				["ride", [[1],[1,\s], [1],[1,\s]]] ] ,
+			["ride", [[1],[1,\s], [1],[1,\s]]] ] ,
 			// [1]
 			[["ride", [[1],[d,\s],[u],[1],[d,\s],[u]]],
-				["ride", [[d],[u],[1,\s],[d],[u],[1,\s]]]],
+			["ride", [[d],[u],[1,\s],[d],[u],[1,\s]]]],
 			// [2]
 			[["ride", [[1],[d,\s],[u],[1],[1,\s]]],
-				["ride", [[d],[u],[1,\s],[1],[d,\s],[u]]]],
+			["ride", [[d],[u],[1,\s],[1],[d,\s],[u]]]],
 			[["ride", [[1],[d,\s],[u],[1],[1,\s]]],
-				["ride", [[1],[1],[1],[1]]]]
+			["ride", [[1],[1],[1],[1]]]]
 		];
 	}
 
@@ -281,58 +336,58 @@ DrumPlayer {
 	buildKSLibrary{
 		// basic
 		this.basicKSLibrary = [
-		["pat 1",4,[
-			["kick", [[2/3,\s],[1/3],[1,\r],[2/3,\s],[1/3],[1,\r]]],
-			["snare", [[1,\r],[2/3,\s],[1/3],[1,\r],[2/3,\s],[1/3]]]
+			["pat 1",4,[
+				["kick", [[2/3,\s],[1/3],[1,\r],[2/3,\s],[1/3],[1,\r]]],
+				["snare", [[1,\r],[2/3,\s],[1/3],[1,\r],[2/3,\s],[1/3]]]
 			] ],
-		["pat 2", 4,[
-			["kick", [[2/3,\r],[1/3],[2/3,\r],[1/3],[2/3,\r],[1/3],[2/3,\r],[1/3]]],
-		    ["snare", [[1,\r],[1,\s],[1,\r],[1,\s]]]
+			["pat 2", 4,[
+				["kick", [[2/3,\r],[1/3],[2/3,\r],[1/3],[2/3,\r],[1/3],[2/3,\r],[1/3]]],
+				["snare", [[1,\r],[1,\s],[1,\r],[1,\s]]]
 			] ],
-		/*this.library = this.library.add(DrumPattern.new("pat 3", 4,[
+			/*this.library = this.library.add(DrumPattern.new("pat 3", 4,[
 			["snare", [[2 + (1/3),\r],[1/3,\s],[1/3],[1,\r]]]
-		] ) );*/
-	/*	this.library = this.library.add(DrumPattern.new("pat 4", 4,[
+			] ) );*/
+			/*	this.library = this.library.add(DrumPattern.new("pat 4", 4,[
 			["snare", [[1/3],[1/3],[(1/3),\r],[1,\r],[1/3],[1/3],[(1/3),\r],[1,\r]]],
 			["kick", [[2/3,\r],[1/3],[1,\r],[2/3,\r],[1/3],[1,\r]]]
-		] ) );*/
-		["pat 5", 4,[
-			["snare", [[2/3,\r],[1/3],[1/3,\r],[1/3],[1/3],[1,\r],[1,\s]]],
-			["kick", [[2,\r],[2/3,\r],[1/3],[1,\r]]]
+			] ) );*/
+			["pat 5", 4,[
+				["snare", [[2/3,\r],[1/3],[1/3,\r],[1/3],[1/3],[1,\r],[1,\s]]],
+				["kick", [[2,\r],[2/3,\r],[1/3],[1,\r]]]
 			] ],
-		// comping
-		["pat 6",4,[
-			["kick", [[(1+(1/3))], [(1+(1/3))],[(1+(1/3))]]],
-			["snare", [[2/3], [1 +(1/3)], [1 +(1/3)], [2/3]]]
+			// comping
+			["pat 6",4,[
+				["kick", [[(1+(1/3))], [(1+(1/3))],[(1+(1/3))]]],
+				["snare", [[2/3], [1 +(1/3)], [1 +(1/3)], [2/3]]]
 			] ],
-		["pat 7",4,[
-			["kick", [[2],[2]]],
-			["snare", [[2 +(1/3),\r], [1/3],[1 +(1/3)]]]
+			["pat 7",4,[
+				["kick", [[2],[2]]],
+				["snare", [[2 +(1/3),\r], [1/3],[1 +(1/3)]]]
 			] ],
-		["pat 8, poly1",4,[
-			["kick", [[(2/3),\r], [1], [1], [1],[(1/3)]]],
-			["snare", [[1/3],[1 +(2/3)],[1/3],[1 +(2/3)] ]]
+			["pat 8, poly1",4,[
+				["kick", [[(2/3),\r], [1], [1], [1],[(1/3)]]],
+				["snare", [[1/3],[1 +(2/3)],[1/3],[1 +(2/3)] ]]
 			] ],
-		["pat 9",4,[
-			["kick", [[(2/3),\r], [1 +(1/3)], [2/3], [1 +(1/3)]]],
-			["snare", [[1,\r],[1 +(1/3),\s],[2/3],[1,\s] ]]
+			["pat 9",4,[
+				["kick", [[(2/3),\r], [1 +(1/3)], [2/3], [1 +(1/3)]]],
+				["snare", [[1,\r],[1 +(1/3),\s],[2/3],[1,\s] ]]
 			] ],
-		["pat 10",4,[
-			["kick", [[1/3,\r],[2/3],[2/3,\s],[2/3],[2/3],[2/3,\s],[1/3]]],
-			["snare", [[2/3],[2/3],[2/3],[2/3],[2/3],[2/3]]]
+			["pat 10",4,[
+				["kick", [[1/3,\r],[2/3],[2/3,\s],[2/3],[2/3],[2/3,\s],[1/3]]],
+				["snare", [[2/3],[2/3],[2/3],[2/3],[2/3],[2/3]]]
 			] ],
-		["pat 11a",4,[
-			["kick", [[1/3],[1],[1/3],[1],[1/3],[1]]],
-			["snare", [[2/3,\r],[1/3],[1/3],[2/3,\r],[1/3],[1/3],[2/3,\r],[1/3],[1/3]]]
+			["pat 11a",4,[
+				["kick", [[1/3],[1],[1/3],[1],[1/3],[1]]],
+				["snare", [[2/3,\r],[1/3],[1/3],[2/3,\r],[1/3],[1/3],[2/3,\r],[1/3],[1/3]]]
 			] ],
-		["pat 11b",4,[
-			["snare", [[1/3],[1],[1/3],[1],[1/3],[1]]],
-			["kick", [[2/3,\r],[1/3],[1/3],[2/3,\r],[1/3],[1/3],[2/3,\r],[1/3],[1/3]]]
+			["pat 11b",4,[
+				["snare", [[1/3],[1],[1/3],[1],[1/3],[1]]],
+				["kick", [[2/3,\r],[1/3],[1/3],[2/3,\r],[1/3],[1/3],[2/3,\r],[1/3],[1/3]]]
 			] ]
-	/*	this.library = this.library.add(DrumPattern.new("pat 11",4,[
+			/*	this.library = this.library.add(DrumPattern.new("pat 11",4,[
 			["kick", [[(1/3), \r],[2],[1 +(2/3)]]],
 			["snare", [[1 +(1/3),\r], [2], [1/3,\s],[1/3]]]
-		] ) );*/
+			] ) );*/
 
 		]; // end of library
 
