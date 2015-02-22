@@ -8,7 +8,7 @@ DrumPattern {
 	*initClass {
 		// amp of 0.5 will be default volume
 		DrumPattern.accentDict = Dictionary.newFrom(List[\s, 0.62, \w, 0.3,  \n, 0.5, \vs, 0.8, \r, 0]);
-		DrumPattern.drumList = ["kick","snare","ride","openhh", "closedhh","rim","midtom", "hightom"];
+		DrumPattern.drumList = ["kick","snare","ride","openhh", "closedhh","rim","midtom", "hightom", "lowtom"];
 		DrumPattern.drumIndexDict = Dictionary();
 		DrumPattern.drumList.do {|name, i| DrumPattern.drumIndexDict[name] = i} ;
 		DrumPattern.setSwing(2.7);
@@ -78,13 +78,13 @@ DrumPlayer {
 	*new{ |midiout, tempoclock|
 	^super.new.init (midiout, tempoclock) }
 	*initClass {
-		DrumPlayer.midiNumIndex = [36, 38, 51, 46, 42, 37, 45, 44]; //kick, snare, ride, open, closed, rim, lowtom, hightom
+		DrumPlayer.midiNumIndex = [36, 38, 51, 46, 42, 37, 45, 44,41]; //kick, snare, ride, open, closed, rim, lowtom, hightom, lowtom
 	}
 	init { |midiout, tempoclock|
 		this.midiout = midiout;
 		if (tempoclock == nil, { this.tempoclock = TempoClock.new(132/60)}, { this.tempoclock = tempoclock });
 
-		this.playMode = \playNormal; // or \playRandom, \playEntireLibrary, \playNormal, \playSingle
+		this.playMode = \playRegularPolymetric; // or \playRandom, \playEntireLibrary, \playNormal, \playSingle, playRegularPolymetric
 		this.barCount = 0;
 		this.buildKSLibrary(); //kick -snare library
 
@@ -135,6 +135,26 @@ DrumPlayer {
 		);
 		^newPattern;
 	}
+	playRegularPolymetric {
+		var die = 2.rand;
+		this.playNormal;
+		// if ((this.barCount % 16) == 6, {this.polymetricFill(1, [2,3,4].choose)});
+		if ((this.barCount % 16) == 6, {
+			case
+			{die == 0 } {this.basicFill(1)}
+			{die == 1 } {this.polymetricFill(1, [2,3,4].choose)}
+			}
+		);
+		if ((this.barCount % 16) == 13, {
+			case
+			{die == 0 } {this.basicFill(2)}
+			{die == 1 } {this.polymetricFill(2, [2,3,4].choose)}
+			}
+		);
+
+
+	}
+
 	playNormal {
 		var next;
 		next = this.schedule.next;
@@ -145,8 +165,6 @@ DrumPlayer {
 		{ this.currentPattern = next.copy; } );
 		/*if (((this.barCount % 4) == 2) &&  (3.rand > 0),
 		{this.currentPattern = DrumPlayer.generatePattern;});*/
-		if ((this.barCount % 16) == 6, {this.elvinJonesFill(1)});
-		if ((this.barCount % 16) == 13, {this.elvinJonesFill(2)});
 
 	}
 
@@ -177,6 +195,7 @@ DrumPlayer {
 	decideNext {
 		this.barCount = this.barCount + 1;
 		case
+		{ this.playMode == \playRegularPolymetric} {this.playRegularPolymetric}
 		{ this.playMode == \playRandom} {this.playRandomPatterns()}
 		{ this.playMode == \playEntireLibrary} {this.playEntireLibrary()}
 		{ this.playMode == \playNormal} {this.playNormal()}
@@ -221,7 +240,20 @@ DrumPlayer {
 				).play(this.tempoclock);
 		) };
 	}
-	*generatePattern {
+
+	basicFill { |numBars = 1, repeat = false|
+		// create and schedule 1 bar fill
+		var fill, patternArr = [], temp = DrumPlayer.generatePattern();
+		numBars.do { |i|
+			if (repeat == false, { temp = DrumPlayer.generatePattern()});
+			patternArr = patternArr.add(temp);
+		};
+
+		this.schedule = Routine({patternArr.do {|fill| fill.yield}});
+
+	}
+
+	*generatePattern { |unit = 3|
 		// ride will play quarters, make 6 slot array gen pattern from KSRH, either repeat or mutate
 		// then build pattern from 12 slot array
 		var choices = ["snare", "kick", "closedhh", "midtom", "hightom","rest"],
@@ -234,13 +266,20 @@ DrumPlayer {
 		};
 		secondhalf = initialArray.copy;
 
-		if (2.rand == 0,
-			{ var change1 = 6.rand, change2 = 6.rand;
-				secondhalf[change1][0] = choices.choose;
-		secondhalf[change2][0] = choices.choose; });
+		if (4.rand != 0,
+			{ var change1 = 6.rand, change2 = 6.rand , pair1, pair2;
+				["modified", change1, change2].postln;
+				pair1 = secondhalf[change1];
+				pair1 = [choices.choose, pair1[1]];
+				secondhalf[change1] = pair1;
+				pair2 = secondhalf[change2];
+				pair2 = [choices.choose, pair2[1]];
+				secondhalf[change1] = pair2;
+		});
 
 
-
+		["init", initialArray].postln;
+		["secd", secondhalf].postln;
 		^DrumPlayer.monoListToPattern(initialArray ++ secondhalf);
 	}
 
@@ -266,14 +305,17 @@ DrumPlayer {
 		^outPattern
 	}
 
-	elvinJonesFill { |size = 2|
-		var metersArr, inflatedArr = [], outPatternArr, numTrips = (12*size), drumOrder, drumCount = 0, drumArray;
-		// drumOrder = ["hightom","midtom","snare"].scramble;
-		drumOrder = ["hightom","midtom","snare"].scramble;
+	polymetricFill { |numBars = 2, unit = 3|
+		var metersArr, inflatedArr = [], outPatternArr, numHits, hitsPerBar, drumOrder, drumCount = 0, drumArray;
+
+		hitsPerBar = unit*4;
+		numHits = hitsPerBar*5;
+		drumOrder = ["hightom","midtom","snare","lowtom","snare"].scramble;
+		drumOrder = drumOrder[0..rrand(2,3)];
 		outPatternArr = [];
 		drumArray = Array.fill (DrumPattern.drumList.size { [] });
 		metersArr = Array.fill (2, {5.rand  + 2 });
-		while ({inflatedArr.size < numTrips},
+		while ({inflatedArr.size < numHits},
 			{
 				metersArr.do { |currentMeter|
 					inflatedArr = inflatedArr.add("acc");
@@ -283,27 +325,27 @@ DrumPlayer {
 		});
 
 		// cut off extra
-		inflatedArr = inflatedArr[0..(numTrips -1)];
+		inflatedArr = inflatedArr[0..(numHits -1)];
 
 		inflatedArr.do { |event, stepNum|
 			var kick = 0, ride = 2;
 			drumArray.do { |arraySoFar, arraySlotNum |
 				if (DrumPattern.drumIndexDict[event.asString] == arraySlotNum,
-					{ drumArray[arraySlotNum] = drumArray[arraySlotNum].add([1/3, \n]) },
-				{ drumArray[arraySlotNum] = drumArray[arraySlotNum].add([1/3, \r]) } );
+					{ drumArray[arraySlotNum] = drumArray[arraySlotNum].add([1/unit, \n]) },
+				{ drumArray[arraySlotNum] = drumArray[arraySlotNum].add([1/unit, \r]) } );
 
 			};
 			if (event == "acc", {
-					drumArray[kick][drumArray[ride].size -1] = [1/3, \s];
-					drumArray[ride][drumArray[ride].size -1] = [1/3, \s];
+					drumArray[kick][drumArray[ride].size -1] = [1/unit, \s];
+					drumArray[ride][drumArray[ride].size -1] = [1/unit, \s];
 					});
 		};
 
 
-		size.do { |barNum|
+		numBars.do { |barNum|
 			var template = [];
 			DrumPattern.drumList.do {  |drumName, i|
-				template = template.add([drumName, drumArray[i][(barNum * 12)..(barNum * 12 + 11)]]);
+				template = template.add([drumName, drumArray[i][(barNum * hitsPerBar)..(barNum * hitsPerBar + (hitsPerBar-1))]]);
 
 			};
 			outPatternArr = outPatternArr.add(DrumPattern("elvin jones fill", 4, template, false));
