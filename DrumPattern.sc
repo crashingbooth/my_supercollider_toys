@@ -7,7 +7,7 @@ DrumPattern {
 
 	*initClass {
 		// amp of 0.5 will be default volume
-		DrumPattern.accentDict = Dictionary.newFrom(List[\s, 0.62, \w, 0.3,  \n, 0.5, \vs, 0.8, \r, 0]);
+		DrumPattern.accentDict = Dictionary.newFrom(List[\s, 0.58, \w, 0.3,  \n, 0.5, \vs, 0.8, \r, 0]);
 		DrumPattern.drumList = ["kick","snare","ride","openhh", "closedhh","rim","midtom", "hightom", "lowtom"];
 		DrumPattern.drumIndexDict = Dictionary();
 		DrumPattern.drumList.do {|name, i| DrumPattern.drumIndexDict[name] = i} ;
@@ -224,7 +224,7 @@ DrumPlayer {
 	}
 
 
-	playPattern { |mode = nil|
+	play { |mode = nil|
 		var pbs = [], beatsched;
 		beatsched = BeatSched.new(tempoClock:this.tempoclock);
 		beatsched.beat = 0;
@@ -239,6 +239,7 @@ DrumPlayer {
 				\lag, Pwhite(-0.02, 0.02)
 				).play(this.tempoclock);
 		) };
+		^pbs;
 	}
 
 	basicFill { |numBars = 1, repeat = false|
@@ -253,46 +254,71 @@ DrumPlayer {
 
 	}
 
-	*generatePattern { |unit = 3|
+	*generatePattern { |phraseLength = 6, reps = 2, minKickDensity = 0, maxKickDensity = 1|
 		// ride will play quarters, make 6 slot array gen pattern from KSRH, either repeat or mutate
 		// then build pattern from 12 slot array
-		var choices = ["snare", "kick", "closedhh", "midtom", "hightom","rest"],
-		initialArray = [], secondhalf, accent1 = 6.rand, accent2 = 6.rand;
+		var choices = ["snare", "kick", "closedhh","closedhh", "midtom", "hightom","rest"],
+		initialArray = [], repsArr = [], accent1 = phraseLength.rand, accent2 = phraseLength.rand, outList, kickRate, kicks,minKickFlag = false, maxKickFlag = false;
+		var count = 0;
+		while ({(minKickFlag == false) || (maxKickFlag == false)},
 
-		6.do { |i|
-			var acc = \n;
-			if ( (i == accent1) || (i == accent2), { acc = \s } );
-			initialArray = initialArray.add([choices.choose, acc]);
+			{
+				initialArray = [];
+				minKickFlag = false;
+				maxKickFlag = false;
+				phraseLength.do { |i|
+					var acc = \n;
+					if ( (i == accent1) || (i == accent2), { acc = \s } );
+					initialArray = initialArray.add([choices.choose, acc]);
+				};
+
+
+
+				repsArr = [];
+		repsArr = repsArr.add(initialArray);
+		(reps -1).do {
+			var temp = [repsArr[repsArr.size -1].copy, repsArr[0].copy].choose, change1, change2, pair1, pair2;
+			change1 = phraseLength.rand;
+			change2 = phraseLength.rand;
+			pair1 = temp[change1];
+			pair1 = [choices.choose, pair1[1]];
+			temp[change1] = pair1;
+			pair2 = temp[change2];
+			pair2 = [choices.choose, pair2[1]];
+			temp[change1] = pair2;
+			repsArr = repsArr.add(temp);
 		};
-		secondhalf = initialArray.copy;
+				kicks = 0;
+				repsArr.do { |initArr|
+					initArr.do {
+					|pair| if (pair[0] == "kick", {kicks = kicks +1;}) };
+				};
+				kickRate = (kicks/(reps*phraseLength));
 
-		if (4.rand != 0,
-			{ var change1 = 6.rand, change2 = 6.rand , pair1, pair2;
-				["modified", change1, change2].postln;
-				pair1 = secondhalf[change1];
-				pair1 = [choices.choose, pair1[1]];
-				secondhalf[change1] = pair1;
-				pair2 = secondhalf[change2];
-				pair2 = [choices.choose, pair2[1]];
-				secondhalf[change1] = pair2;
-		});
+				if (minKickDensity <= kickRate, {minKickFlag = true});
+				if (maxKickDensity >= kickRate, {maxKickFlag = true});
+				count = count +1;
+				if (count > 100, {minKickFlag = true; maxKickFlag = true});
+				// ["COUNT", count, "KICKRATE", kickRate, (reps*phraseLength)].postln;
 
 
-		["init", initialArray].postln;
-		["secd", secondhalf].postln;
-		^DrumPlayer.monoListToPattern(initialArray ++ secondhalf);
+		} );
+		outList = [];
+		repsArr.do {  |phrase| outList = outList ++ phrase	};
+
+		^DrumPlayer.monoListToPattern(outList, name: "test", hitsPerBar:(phraseLength * reps));
 	}
 
-	*monoListToPattern { |monoList, name = "generated pattern"|
-		var drumArray, template, outPattern;
+	*monoListToPattern { |monoList, name = "generated pattern", hitsPerBar = 12|
+		var drumArray, template, outPattern, oneHitDur = (4/hitsPerBar);
 		drumArray = Array.fill (DrumPattern.drumList.size { [] });
 
 
 		monoList.do { |event, stepNum|
 			drumArray.do { |arraySoFar, arraySlotNum |
 				if (DrumPattern.drumIndexDict[event[0].asString] == arraySlotNum,
-					{ drumArray[arraySlotNum] = drumArray[arraySlotNum].add([1/3, event[1]]) },
-				{ drumArray[arraySlotNum] = drumArray[arraySlotNum].add([1/3, \r]) } );
+					{ drumArray[arraySlotNum] = drumArray[arraySlotNum].add([oneHitDur, event[1]]) },
+				{ drumArray[arraySlotNum] = drumArray[arraySlotNum].add([oneHitDur, \r]) } );
 			}
 		};
 		template = [];
@@ -300,7 +326,7 @@ DrumPlayer {
 			template = template.add([drumName, drumArray[i]]);
 		};
 
-		outPattern = DrumPattern.new( name,monoList.size/3, template);
+		outPattern = DrumPattern.new( name, 4, template);
 		outPattern.getDefaultRideAndHat();
 		^outPattern
 	}
