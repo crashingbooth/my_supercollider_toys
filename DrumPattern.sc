@@ -154,6 +154,20 @@ DrumPlayer {
 
 
 	}
+	playRegFill {
+		var die = 2.rand;
+		this.playNormal;
+		if ((this.barCount % 2) == 0,
+		{
+			/*	case
+			{die == 0 } {this.basicFill(1);"PP!".postln;}
+			{die == 1 } {this.polymetricFill(1, [2,3,4].choose); "PPP".postln;}
+
+	}*/
+				this.polymetricFill(1, [3,4].choose); }
+			);
+
+	}
 
 	playNormal {
 		var next;
@@ -200,7 +214,8 @@ DrumPlayer {
 		{ this.playMode == \playEntireLibrary} {this.playEntireLibrary()}
 		{ this.playMode == \playNormal} {this.playNormal()}
 		{ this.playMode == \playSingle } {this.playSingle()}
-		{ this.playMode == \playCustom } {this.playRegenerateCustom()};
+		{ this.playMode == \playCustom } {this.playRegenerateCustom()}
+		{ this.playMode == \playRegFill } {this.playRegFill};
 		if (((this.barCount % 8) == 0), {["barCount", this.barCount].postln; this.scheduleRideVar()});
 
 
@@ -298,7 +313,7 @@ DrumPlayer {
 				if (minKickDensity <= kickRate, {minKickFlag = true});
 				if (maxKickDensity >= kickRate, {maxKickFlag = true});
 				count = count +1;
-				if (count > 100, {minKickFlag = true; maxKickFlag = true});
+				if (count > 50, {minKickFlag = true; maxKickFlag = true});
 				// ["COUNT", count, "KICKRATE", kickRate, (reps*phraseLength)].postln;
 
 
