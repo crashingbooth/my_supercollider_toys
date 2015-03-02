@@ -24,7 +24,7 @@ ModalBass {
 		this.onDeck = [this.scale, this.root];
  		this.verbose = false;
 		this.skipLastBeat = false;
-		this.usedChromaticArr = Array.fill(8, {0});
+		this.usedChromaticArr = Array.fill(16, {0});
 		this.behaviour = \playNormal;
 		this.channel = 0;
 		this.dur = 1;
@@ -109,7 +109,7 @@ ModalBass {
 
 	makeSecondBeat {
 		if ( (this.prev==0) && (4.rand==0),
-			{ this.degree = this.octaveSize;  this.asc=[-1,0].choose },
+			{ this.degree = this.octaveSize;  this.asc=[-1,0].choose; "OCTAVEJUMP".postln },
 			{ this.degree = this.chooseDefaultNote() } );
 
 		this.prev2 = this.prev;
@@ -134,6 +134,7 @@ ModalBass {
 		{ (this.asc == 0) && (this.prev >= this.octaveSize) }
 		{ degree = [this.prev-1,this.prev-2,this.prev-3,this.prev+1,this.charNote].wchoose([0.4,0.2,0.1,0.1,0.2]); };
 
+		degree = this.preventRootOrRepeat(degree, this.prev, this.prev2);
 		^degree;
 	}
 
@@ -144,7 +145,7 @@ ModalBass {
 		// change tonic early if mode/root is changing next phrase
 		if (this.onDeck != [this.scale, this.root], {this.setScale(this.onDeck[0], this.onDeck[1]);});
 
-		distance = this.distanceFromTonic(this.degree);
+		distance = this.calculateInterval(this.degree, 0); // distance from tonic
 
 		if (distance > 0, {direction = 1 }, {direction = -1});
 		if ((this.degree > 0 ) && (direction < 0), {octave = octave +1 }); //hacky
@@ -167,23 +168,75 @@ ModalBass {
 		// ["Took Path", debug].postln;
 
 		^degree;
+	}
+	chooseFourthNote {
+		// possibly do a halfstep if it is close enough
+
+		// might need to adjust octave calculation
+		var degree, octave = (this.degree/this.octaveSize).asInteger, distance, direction, chromatic = 0, debug;
+		degree = this.degree;
+
+		distance = this.calculateInterval(this.degree, 4); // distance from dominant
+		case
+		{(distance ==  2) && this.shouldUseChromatic} {degree = degree - 0.5; chromatic = 1; "FROMSIXTH".postln;}
+		{(distance == -2) && this.shouldUseChromatic} {degree = degree + 0.5; chromatic = 1; "ONFOURTH".postln; }
+		{degree = this.chooseDefaultNote()};
+
+
+		this.updateUsedChromatic(chromatic);
+
+		^degree;
+	}
+	chooseFifthNote {
+		var degree, distance;
+		degree = this.degree;
+		distance = this.calculateInterval(this.degree, 4); // distance from dominant
+		if (degree < 0, {distance = (distance * -1);});
+
+		// if halfstep from fifth, play fifth
+
+		if (abs(distance) == 1,
+			{degree = (degree - (distance*0.5))  },  // this should always be the fifth
+			{degree = this.chooseDefaultNote()}
+		);
+		distance = this.calculateInterval(degree, 4); // distance from dominant
+
+		^degree;
 
 	}
+
+
 	shouldUseChromatic {
 		// return false if just used or more than 3 of last 8
-		if ((this.usedChromaticArr.sum > 3) || (this.usedChromaticArr[0] == 1),
-			{ ^false}, { ^true});
+		// ["NUMCHROM", this.usedChromaticArr.sum].postln;
+		if ((this.usedChromaticArr.sum >= 3) || (this.usedChromaticArr[0] == 1),
+			{ ^false}, {^true;});
 
 		}
 	updateUsedChromatic { |used| // 1 or 0
-		// keep track of 8 most recent last beat
+		// keep track of 16 most recent last beat
 		this.usedChromaticArr = this.usedChromaticArr.addFirst(used);
-		this.usedChromaticArr = this.usedChromaticArr[0..7];
+		this.usedChromaticArr = this.usedChromaticArr[0..15];
+
 	}
 
 	makeDefaultBeat {
 		this.degree = this.chooseDefaultNote();
-		this.degree = this.preventRootOrRepeat(this.degree, this.prev, this.prev2);
+		// this.degree = this.preventRootOrRepeat(this.degree, this.prev, this.prev2);
+
+		this.prev2 = this.prev;
+		this.prev = this.degree;
+		^[[ModalBass.getRealPitch(this.degree, this.scale, this.root), this.dur]];
+	}
+	makeFourthBeat {
+		this.degree = this.chooseFourthNote();
+
+		this.prev2 = this.prev;
+		this.prev = this.degree;
+		^[[ModalBass.getRealPitch(this.degree, this.scale, this.root), this.dur]];
+	}
+	makeFifthBeat {
+		this.degree = this.chooseFifthNote();
 
 		this.prev2 = this.prev;
 		this.prev = this.degree;
@@ -207,7 +260,7 @@ ModalBass {
 				this.skipLastBeat = true;
 				// 1st in triplet
 				this.degree = this.chooseDefaultNote();
-				this.degree = this.preventRootOrRepeat(this.degree, this.prev, this.prev2);
+				// this.degree = this.preventRootOrRepeat(this.degree, this.prev, this.prev2);
 				phrase = phrase.add([ModalBass.getRealPitch(this.degree, this.scale, this.root), this.dur*2/3]);
 				this.prev2 = this.prev;
 				this.prev = this.degree;
@@ -215,7 +268,7 @@ ModalBass {
 				// 2nd in triplet
 
 				this.degree = this.chooseDefaultNote();
-				this.degree = this.preventRootOrRepeat(this.degree, this.prev, this.prev2);
+				// this.degree = this.preventRootOrRepeat(this.degree, this.prev, this.prev2);
 				phrase = phrase.add([ModalBass.getRealPitch(this.degree, this.scale, this.root), this.dur*2/3]);
 				this.prev2 = this.prev;
 				this.prev = this.degree;
@@ -232,26 +285,35 @@ ModalBass {
 		^phrase;
 	}
 
-	distanceFromTonic { |degree|
-		// called in chooseFinalNote
-		var interval, releventTonic, semitone = 0;
-		if ((degree % 1) > 0, {semitone = 1});
-		interval = (this.scale[degree] - this.scale[0]);
 
-		if ( interval > 6, {interval = (interval - 12 - semitone)},
-			{interval = interval + semitone});
+	calculateInterval { |degree, referenceDegree = 0|
+		// referenceDegree = 4 to calculate distance from the fifth
+
+		var interval, semitone = 0;
+
+		if ((degree % 1) > 0, {semitone = 1});
+		if (degree < 0, {semitone = (semitone * -1)});  // when less than 0, values are reversed
+		interval = (this.scale[degree] - this.scale[referenceDegree]);
+
+		if ( (interval > 6), {interval = (interval - 12)} );
+		if ( (interval < -6), {interval = (interval + 12)});
+		interval = interval + semitone;
 		^interval;
 	}
 
-	calculateInterval {}
-
-
-
 
 	preventRootOrRepeat { |degree, prev, prev2|
-		while( {((degree % this.octaveSize) == 0) || (degree == prev) || (degree == prev2) },
-			{ degree = [degree + 1, degree - 1].choose; }
-		);
+		var counter = 0, stillLooking = true;
+
+		if (((degree % this.octaveSize) == 0) || (degree == prev) || (degree == prev2), {stillLooking = true}, {stillLooking = false});
+		while ({stillLooking},
+			{
+				degree = [degree + 1, degree - 1].choose;
+				if (((degree % this.octaveSize) == 0) || (degree == prev) || (degree == prev2), {stillLooking = true}, {stillLooking = false});
+				if (((degree % this.octaveSize) == 0), {counter = counter + 1});
+				if (((counter >= 3) && (degree != prev) ), {stillLooking = false });
+		});
+
 		^degree;
 
 	}
@@ -277,11 +339,13 @@ ModalBass {
 		var phrase = [], next;
 
 		case
-			{this.beatCounter == 0} { next = this.makeFirstBeat }
-			{this.beatCounter == 1} { next = this.makeSecondBeat }
-			{this.beatCounter == (this.phraseLength - 2) } { next = this.make2ndLastBeat() }
-			{this.beatCounter == (this.phraseLength - 1) } { next = this.makeLastBeat() }
-			{next = this.makeDefaultBeat }; // default case
+		{this.beatCounter == 0} { next = this.makeFirstBeat }
+		{this.beatCounter == 1} { next = this.makeSecondBeat }
+		{this.beatCounter == 3} { next = this.makeFourthBeat }
+		{this.beatCounter == 4} { next = this.makeFifthBeat }
+		{this.beatCounter == (this.phraseLength - 2) } { next = this.make2ndLastBeat() }
+		{this.beatCounter == (this.phraseLength - 1) } { next = this.makeLastBeat() }
+		{next = this.makeDefaultBeat }; // default case
 
 		if (this.skipLastBeat, {this.skipLastBeat = false; this.beatCounter = this.beatCounter + 1; });
 		this.beatCounter = this.beatCounter + 1;
@@ -313,8 +377,9 @@ ModalBass {
 	}
 	displayPhrase { |phrase|
 
-		[this.scale, "root", this.root].postln;
+		// [this.scale, "root", this.root].postln;
 		phrase.do { |beat, i|
+
 			["deg",ModalBass.getNoteName(beat[0]), "dur",beat[1]].postln;
 		}
 	}
@@ -333,7 +398,7 @@ ModalBass {
 		var pitchClass = ["C", "C#/Db", "D", "Eb", "E","F", "F#/Gb", "G", "G#/Ab","A","A#/Bb","B"], octave, outString;
 		octave = (midiNote/12).asInteger;
 		if (midiNote < 0, {octave = octave -1});
-		if (midiNote.isInteger, { outString = pitchClass.wrapAt(midiNote) ++ octave.asString}, {"rest"});
+		if (midiNote.isNumber, { outString = (pitchClass.wrapAt(midiNote) ++ octave.asString)}, {outString = "rest"});
 		^(outString);
 
 	}
