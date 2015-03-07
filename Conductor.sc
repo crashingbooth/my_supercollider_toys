@@ -30,6 +30,15 @@ Conductor {
 		^[scale, root];
 	}
 
+	doOstinato {
+		var bassScore;
+		bassScore = [Conductor.generateOstinato(), Scale.dorian, 2, 0 ];
+		this.bass.scoreBag = bassScore;
+		this.bass.changeToScore = true;
+		this.drums.playMode = \playRegFill;
+		this.tempoclock.sched(31, { "called".postln; this.drums.playMode = \playRegularPolymetric });
+	}
+
 	executeChart { |chordChart|
 		// entries in the form [scale, root, numPatterns]
 		var expandedChart = [], mainSched, onDeckChart, onDeckSched;

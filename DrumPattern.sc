@@ -85,7 +85,7 @@ DrumPlayer {
 		if (tempoclock == nil, { this.tempoclock = TempoClock.new(132/60)}, { this.tempoclock = tempoclock });
 
 		this.playMode = \playRegularPolymetric; // or \playRandom, \playEntireLibrary, \playNormal, \playSingle, playRegularPolymetric
-		this.barCount = 0;
+		this.barCount = 1;
 		this.buildKSLibrary(); //kick -snare library
 
 		this.buildRideLibrary();
@@ -137,20 +137,23 @@ DrumPlayer {
 	}
 	playRegularPolymetric {
 		var die = 2.rand;
-		this.playNormal;
-		// if ((this.barCount % 16) == 6, {this.polymetricFill(1, [2,3,4].choose)});
-		if ((this.barCount % 16) == 6, {
+
+
+		case
+		{(this.barCount % 16) == 7} {
+
 			case
 			{die == 0 } {this.basicFill(1)}
-			{die == 1 } {this.polymetricFill(1, [2,3,4].choose)}
+			{die == 1 } {this.polymetricFill(1, [2,3,3,4].choose)}
 			}
-		);
-		if ((this.barCount % 16) == 13, {
+		{(this.barCount % 16) == 14} {
+
 			case
 			{die == 0 } {this.basicFill(2)}
-			{die == 1 } {this.polymetricFill(2, [2,3,4].choose)}
-			}
-		);
+			{die == 1 } {this.polymetricFill(2, 3)}
+			};
+		this.playNormal;
+
 
 
 	}
@@ -159,11 +162,7 @@ DrumPlayer {
 		this.playNormal;
 		if ((this.barCount % 2) == 0,
 		{
-			/*	case
-			{die == 0 } {this.basicFill(1);"PP!".postln;}
-			{die == 1 } {this.polymetricFill(1, [2,3,4].choose); "PPP".postln;}
 
-	}*/
 				this.polymetricFill(1, [3,4].choose); }
 			);
 
@@ -172,13 +171,12 @@ DrumPlayer {
 	playNormal {
 		var next;
 		next = this.schedule.next;
-		postln(["barCount", this.barCount]);
+		if (this.verbose, {["barCount", this.barCount].postln;});
 		if ( next == nil,
 			{	this.currentPattern = DrumPlayer.build1BarPattern(this.chooseByGamblersFallacy());
 			if (this.verbose,{	this.currentPattern.name.postln });},
 		{ this.currentPattern = next.copy; } );
-		/*if (((this.barCount % 4) == 2) &&  (3.rand > 0),
-		{this.currentPattern = DrumPlayer.generatePattern;});*/
+
 
 	}
 
@@ -207,7 +205,7 @@ DrumPlayer {
 
 
 	decideNext {
-		this.barCount = this.barCount + 1;
+		/*this.barCount = this.barCount + 1;*/
 		case
 		{ this.playMode == \playRegularPolymetric} {this.playRegularPolymetric}
 		{ this.playMode == \playRandom} {this.playRandomPatterns()}
@@ -218,7 +216,7 @@ DrumPlayer {
 		{ this.playMode == \playRegFill } {this.playRegFill};
 		if (((this.barCount % 8) == 0), {["barCount", this.barCount].postln; this.scheduleRideVar()});
 
-
+		this.barCount = this.barCount + 1;
 		if (this.verbose, {this.currentPattern.display();});
 	}
 
@@ -243,7 +241,7 @@ DrumPlayer {
 		var pbs = [], beatsched;
 		beatsched = BeatSched.new(tempoClock:this.tempoclock);
 		beatsched.beat = 0;
-		beatsched.qsched(3.99,{  this.decideNext; 4 });
+		beatsched.qsched(3.98,{ this.decideNext; 4 });
 		DrumPlayer.midiNumIndex.do { |drumNum, i|
 			pbs = pbs.add( Pbind (
 				\type, \midi,

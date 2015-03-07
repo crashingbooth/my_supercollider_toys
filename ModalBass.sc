@@ -62,6 +62,7 @@ ModalBass {
 			degree = degree + 0.5;
 		});
 
+
 		//performDegreeToKey is broken for *some* non-scale tones!!
 		res = (scale.performDegreeToKey(degree) + root + semitone);
 		^res;
@@ -109,7 +110,7 @@ ModalBass {
 
 	makeSecondBeat {
 		if ( (this.prev==0) && (4.rand==0),
-			{ this.degree = this.octaveSize;  this.asc=[-1,0].choose; "OCTAVEJUMP".postln },
+			{ this.degree = this.octaveSize;  this.asc=[-1,0].choose; },
 			{ this.degree = this.chooseDefaultNote() } );
 
 		this.prev2 = this.prev;
@@ -329,9 +330,13 @@ ModalBass {
 	}
 	handleChanges {
 		if (this.beatCounter == 0, {
+			if (this.onDeck != [this.scale, this.root], {this.setScale(this.onDeck[0], this.onDeck[1]); });
 			case
-			{this.changeToScore == true} {this.behaviour = \playDegreeScore; this.changeToScore = false;}
+
+			{this.changeToScore == true}  {this.behaviour = \playDegreeScore; this.changeToScore = false;}
+			{this.changeToScore == false} {this.behaviour = \playNormal}
 		});
+
 
 	}
 
@@ -407,6 +412,8 @@ ModalBass {
 		// set this.behaviour = \playDegreeScore (called in this.makePhrase)
 		var outPhrase = [], score, scale = this.scoreBag[1], root = this.scoreBag[2], octave = this.scoreBag[3];
 		score = this.scoreBag[0];
+
+
 		if (score == nil, {scale = this.scale});
 		if (root == nil, {root = this.root});
 		if (octave == nil, {octave = 0});
