@@ -1,26 +1,18 @@
-ModalBass {
-	var <>prev, <>prev2, <>degree, <>scale, <>octaveSize, <>phraseLength, <>charNote, <>charNoteDict, <>root, <>dur, <>skipLastBeat, <>midiout, <>tempoclock,<>legato, <>offset, <>asc, <>usedChromaticArr, <>onDeck, <>verbose, <>channel, <>changeToScore,
-	<>behaviour, <>beatCounter, <>scoreBag;
+ModalBass : ModalInstrument {
+	var <>prev, <>prev2, <>degree, <>octaveSize, <>phraseLength, <>dur, <>skipLastBeat, <>midiout, <>tempoclock,<>legato, <>offset, <>asc, <>usedChromaticArr, <>verbose, <>channel, <>changeToScore, <>behaviour, <>beatCounter, <>scoreBag;
+
 	*new {|scale, root, phraseLength, midiout, tempoclock|
-		^super.new.init(scale, root, phraseLength, midiout, tempoclock) }
-	init { |scale, root, phraseLength = 8, midiout, tempoclock|
-		this.charNoteDict = Dictionary.newFrom(
-			List["Scale.ionian", 3,
-				"Scale.dorian", 5,
-				"Scale.phrygian", 1,
-				"Scale.lydian", 3,
-				"Scale.mixolydian", 6,
-				"Scale.aeolian", 5,
-				"Scale.locrian", [1,4].choose,]);
+		^super.new.mb_init(scale, root, phraseLength, midiout, tempoclock) }
+
+	mb_init { |scale, root, phraseLength = 8, midiout, tempoclock|
+		super.init( midiout, tempoclock);
 		// this.degree = 0;
-		this.root = root;
-		this.setScale(scale);
+		this.setScale(scale, root);
 		this.offset = 36;
 		if (tempoclock == nil,
 			{ this.tempoclock = TempoClock.new(132/60)}, { this.tempoclock = tempoclock });
 		this.legato = 0.75; // \sustain = \dur * \legato
 		this.phraseLength = phraseLength;
-		this.midiout = midiout;
 		this.onDeck = [this.scale, this.root];
  		this.verbose = false;
 		this.skipLastBeat = false;
@@ -42,44 +34,19 @@ ModalBass {
 		var realPitch, finalPitch;
 		// get absolute note value
 		if (this.degree != nil, {
-			realPitch =  ModalBass.getRealPitch(this.degree, this.scale, this.root);});
+			realPitch =  ModalInstrument.getRealPitch(this.degree, this.scale, this.root);});
 		this.scale = scale;
-		this.charNote = this.charNoteDict[scale.asString];
+		this.charNote = ModalInstrument.charNoteDict[scale.asString];
 		this.octaveSize = scale.size;
 
 		if (root != nil, {this.root = root});
 		["scale changed to", this.scale, this.root].postln;
 		if (this.degree != nil, {
-			this.degree = ModalBass.getDegreeFromPitch(realPitch, this.scale, this.root);});
+			this.degree = ModalInstrument.getDegreeFromPitch(realPitch, this.scale, this.root);});
 
 	}
 
-	*getRealPitch { |degree, scale, root|
-		var res, semitone = 0;
-		// if not scale tone, adjust here:
-		if ((degree % 1) > 0 , {
-			semitone = -1;
-			degree = degree + 0.5;
-		});
 
-
-		//performDegreeToKey is broken for *some* non-scale tones!!
-		res = (scale.performDegreeToKey(degree) + root + semitone);
-		^res;
-	}
-	*getDegreeFromPitch {|note, scale, root|
-		var res, diff;
-		res = scale.performKeyToDegree(note - root);
-		diff = (note - ModalBass.getRealPitch(res, scale, root));
-
-		^(res + diff);
-	}
-
-
-	prepareNextMode { |scale, root|
-		this.onDeck = [scale, root];
-		// ["onDeck set to", scale, root].postln;
-	}
 	makeFirstBeat {
 		var beatPhrase, prevLast;
 		if (this.prev >= (this.octaveSize - 1),
@@ -90,16 +57,16 @@ ModalBass {
 		// vary rhythm?:
 		if (3.rand > 0, // 2/3 chance to vary rhythm
 			{  if (5.rand > 0, // 4/5 chance of eighths
-				{ beatPhrase = [[ModalBass.getRealPitch(this.degree, this.scale, this.root), this.dur*2/3],
-					[ModalBass.getRealPitch(this.degree, this.scale, this.root), this.dur/3]] },
+				{ beatPhrase = [[ModalInstrument.getRealPitch(this.degree, this.scale, this.root), this.dur*2/3],
+					[ModalInstrument.getRealPitch(this.degree, this.scale, this.root), this.dur/3]] },
 					// else triplet
-					{ beatPhrase = [[ModalBass.getRealPitch(this.degree, this.scale, this.root), this.dur/3],
-						[ModalBass.getRealPitch(this.degree + [4,this.octaveSize].choose, this.scale, this.root), this.dur/3],
-						[ModalBass.getRealPitch(this.degree, this.scale, this.root), this.dur/3]] }
+					{ beatPhrase = [[ModalInstrument.getRealPitch(this.degree, this.scale, this.root), this.dur/3],
+						[ModalInstrument.getRealPitch(this.degree + [4,this.octaveSize].choose, this.scale, this.root), this.dur/3],
+						[ModalInstrument.getRealPitch(this.degree, this.scale, this.root), this.dur/3]] }
 				);
 			},
 			//else no variation
-			{ beatPhrase = [[ModalBass.getRealPitch(this.degree, this.scale, this.root), this.dur]] }
+			{ beatPhrase = [[ModalInstrument.getRealPitch(this.degree, this.scale, this.root), this.dur]] }
 		);
 		this.prev2 = this.prev;
 		if (this.prev == this.degree, {"REPEATED NOTE!"});
@@ -115,7 +82,7 @@ ModalBass {
 
 		this.prev2 = this.prev;
 		this.prev = this.degree;
-		^[[ModalBass.getRealPitch(this.degree, this.scale, this.root), this.dur]];
+		^[[ModalInstrument.getRealPitch(this.degree, this.scale, this.root), this.dur]];
 	}
 
 	chooseDefaultNote {
@@ -227,21 +194,21 @@ ModalBass {
 
 		this.prev2 = this.prev;
 		this.prev = this.degree;
-		^[[ModalBass.getRealPitch(this.degree, this.scale, this.root), this.dur]];
+		^[[ModalInstrument.getRealPitch(this.degree, this.scale, this.root), this.dur]];
 	}
 	makeFourthBeat {
 		this.degree = this.chooseFourthNote();
 
 		this.prev2 = this.prev;
 		this.prev = this.degree;
-		^[[ModalBass.getRealPitch(this.degree, this.scale, this.root), this.dur]];
+		^[[ModalInstrument.getRealPitch(this.degree, this.scale, this.root), this.dur]];
 	}
 	makeFifthBeat {
 		this.degree = this.chooseFifthNote();
 
 		this.prev2 = this.prev;
 		this.prev = this.degree;
-		^[[ModalBass.getRealPitch(this.degree, this.scale, this.root), this.dur]];
+		^[[ModalInstrument.getRealPitch(this.degree, this.scale, this.root), this.dur]];
 	}
 
 	makeLastBeat {
@@ -251,7 +218,7 @@ ModalBass {
 
 		this.prev2 = this.prev;
 		this.prev = this.degree;
-		^[[ModalBass.getRealPitch(this.degree, this.scale, this.root), this.dur]];
+		^[[ModalInstrument.getRealPitch(this.degree, this.scale, this.root), this.dur]];
 	}
 
 	make2ndLastBeat {
@@ -262,7 +229,7 @@ ModalBass {
 				// 1st in triplet
 				this.degree = this.chooseDefaultNote();
 				// this.degree = this.preventRootOrRepeat(this.degree, this.prev, this.prev2);
-				phrase = phrase.add([ModalBass.getRealPitch(this.degree, this.scale, this.root), this.dur*2/3]);
+				phrase = phrase.add([ModalInstrument.getRealPitch(this.degree, this.scale, this.root), this.dur*2/3]);
 				this.prev2 = this.prev;
 				this.prev = this.degree;
 
@@ -270,13 +237,13 @@ ModalBass {
 
 				this.degree = this.chooseDefaultNote();
 				// this.degree = this.preventRootOrRepeat(this.degree, this.prev, this.prev2);
-				phrase = phrase.add([ModalBass.getRealPitch(this.degree, this.scale, this.root), this.dur*2/3]);
+				phrase = phrase.add([ModalInstrument.getRealPitch(this.degree, this.scale, this.root), this.dur*2/3]);
 				this.prev2 = this.prev;
 				this.prev = this.degree;
 
 				// 3rd in triplet (set to upper or lower leading tone)
 				this.degree = this.chooseFinalNote;
-				phrase = phrase.add([ModalBass.getRealPitch(this.degree, this.scale, this.root), this.dur*2/3]);
+				phrase = phrase.add([ModalInstrument.getRealPitch(this.degree, this.scale, this.root), this.dur*2/3]);
 				this.prev2 = this.prev;
 				this.prev = this.degree;
 			}, {phrase = this.makeDefaultBeat()}
@@ -357,16 +324,7 @@ ModalBass {
 		this.beatCounter = this.beatCounter % this.phraseLength;
 		^next
 	}
-	playScore {
-	}
 
-	differentBehaviour {
-		var phrase = [];
-
-		// some procedure
-
-		^phrase;
-	}
 	play {
 		var pb;
 		pb = Pbind (
@@ -385,28 +343,21 @@ ModalBass {
 		// [this.scale, "root", this.root].postln;
 		phrase.do { |beat, i|
 
-			["deg",ModalBass.getNoteName(beat[0]), "dur",beat[1]].postln;
+			["deg",ModalInstrument.getNoteName(beat[0]), "dur",beat[1]].postln;
 		}
 	}
 
 	*testConversion {
 		var scaleList = [Scale.ionian, Scale.dorian, Scale.phrygian, Scale.lydian, Scale.locrian, Scale.mixolydian, Scale.aeolian, Scale.locrian], inScale = scaleList.choose, outScale = scaleList.choose, inRoot = rrand(-12,12), outRoot = rrand(-12,12), startNote = rrand(-5, 12), rawPitch, outNote, testedPitch;
-		rawPitch = ModalBass.getRealPitch(startNote, inScale, inRoot);
-		["inscale", inScale, "inRoot", inRoot, ModalBass.getNoteName(inRoot),"degree", startNote, "raw", rawPitch, ModalBass.getNoteName(rawPitch)].postln;
-		outNote = ModalBass.getDegreeFromPitch(rawPitch, outScale, outRoot);
-		["ouscale", outScale, "outRoot", outRoot, ModalBass.getNoteName(outRoot),"outnote", outNote, "raw", rawPitch, ModalBass.getNoteName(inRoot)].postln;
-		testedPitch = ModalBass.getRealPitch(outNote, outScale, outRoot);
-		[testedPitch == rawPitch, "raw", rawPitch, ModalBass.getNoteName(inRoot),"result", testedPitch, ModalBass.getNoteName(rawPitch),ModalBass.getNoteName(testedPitch)].postln;
+		rawPitch = ModalInstrument.getRealPitch(startNote, inScale, inRoot);
+		["inscale", inScale, "inRoot", inRoot, ModalInstrument.getNoteName(inRoot),"degree", startNote, "raw", rawPitch, ModalInstrument.getNoteName(rawPitch)].postln;
+		outNote = ModalInstrument.getDegreeFromPitch(rawPitch, outScale, outRoot);
+		["ouscale", outScale, "outRoot", outRoot, ModalInstrument.getNoteName(outRoot),"outnote", outNote, "raw", rawPitch, ModalInstrument.getNoteName(inRoot)].postln;
+		testedPitch = ModalInstrument.getRealPitch(outNote, outScale, outRoot);
+		[testedPitch == rawPitch, "raw", rawPitch, ModalInstrument.getNoteName(inRoot),"result", testedPitch, ModalInstrument.getNoteName(rawPitch),ModalInstrument.getNoteName(testedPitch)].postln;
 
 	}
-	*getNoteName { |midiNote|
-		var pitchClass = ["C", "C#/Db", "D", "Eb", "E","F", "F#/Gb", "G", "G#/Ab","A","A#/Bb","B"], octave, outString;
-		octave = (midiNote/12).asInteger;
-		if (midiNote < 0, {octave = octave -1});
-		if (midiNote.isNumber, { outString = (pitchClass.wrapAt(midiNote) ++ octave.asString)}, {outString = "rest"});
-		^(outString);
 
-	}
 
 	playDegreeScore {
 		// set this.behaviour = \playDegreeScore (called in this.makePhrase)
@@ -421,7 +372,7 @@ ModalBass {
 			var note;
 			if (event[0] == \rest,
 				{note = \rest},
-				{note = (ModalBass.getRealPitch(event[0], scale, root) + (octave*12))});
+				{note = (ModalInstrument.getRealPitch(event[0], scale, root) + (octave*12))});
 			outPhrase = outPhrase.add([note, event[1]]);
 		}
 		^outPhrase;

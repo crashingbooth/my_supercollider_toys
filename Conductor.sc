@@ -1,5 +1,5 @@
 Conductor {
-	var <>tempoclock, <>bass, <>drums, <>midiout, <>drumPbind, <>bassPbind ;
+	var <>tempoclock, <>bass, <>drums, <>midiout, <>drumPbind, <>bassPbind, <>piano, <>pianoPbind ;
 	classvar <>static;
 	*new { |tempo, midiout|
 
@@ -10,6 +10,7 @@ Conductor {
 		{ this.tempoclock = TempoClock.new(132/60) }, {this.tempoclock = TempoClock.new(tempo) } );
 		this.bass = ModalBass(Scale.dorian,root:2,phraseLength:8, midiout:this.midiout, tempoclock: this.tempoclock);
 		this.drums = DrumPlayer(midiout: this.midiout, tempoclock: this.tempoclock);
+		this.piano = ModalPiano(Scale.dorian,root:2, midiout:this.midiout, tempoclock: this.tempoclock);
 
 	}
 	play {
@@ -17,6 +18,7 @@ Conductor {
 		this.tempoclock.reset;
 		this.bassPbind = this.bass.play;
 		this.drumPbind = this.drums.play;
+		this.pianoPbind = this.piano.play;
 
 
 	}
@@ -54,7 +56,9 @@ Conductor {
 		// set up first note
 		if (this.bassPbind != nil , {this.bassPbind.stop});
 		if (this.drumPbind != nil , {this.drumPbind.stop});
+		if (this.pianoPbind != nil , {this.pianoPbind.stop});
 		this.bass = ModalBass(expandedChart[0][0],root:expandedChart[0][1],phraseLength:8, midiout:this.midiout, tempoclock: this.tempoclock);
+		this.piano = ModalPiano(expandedChart[0][0],root:expandedChart[0][1], midiout:this.midiout, tempoclock: this.tempoclock);
 		// this.bassPbind = this.bass.play;
 		this.play;
 		mainSched = Routine({expandedChart.do {|oneBar|
@@ -74,7 +78,7 @@ Conductor {
 
 	handleChartRoutine { |onDeckEvent|
 		if (onDeckEvent != [], { ["C - onDeck to", onDeckEvent[0], onDeckEvent[1]].postln;
-		this.bass.prepareNextMode(onDeckEvent[0], onDeckEvent[1]); } );
+		this.bass.prepareNextMode(onDeckEvent[0], onDeckEvent[1]); this.piano.prepareNextMode(onDeckEvent[0], onDeckEvent[1]); } );
 	}
 
 	changeRandomly { |duration = 4, startScale, startRoot = 2|
