@@ -89,6 +89,11 @@ Conductor {
 			this.bass = ModalBass(startScale,root:startRoot,phraseLength:8, midiout:this.midiout, tempoclock: this.tempoclock);
 			this.bassPbind = this.bass.play;
 		});
+		if ((startScale != this.piano.scale) || (startRoot != this.piano.root), {
+			if (this.pianoPbind != nil , {this.pianoPbind.stop});
+			this.piano = ModalPiano(startScale,root:startRoot, midiout:this.midiout, tempoclock: this.tempoclock);
+			this.basspiano = this.piano.play;
+		});
 
 		// onDeckSched = changeRandomSelect
 		this.tempoclock.schedAbs(0,{ var nextOnDeck = onDeckSched.next;
