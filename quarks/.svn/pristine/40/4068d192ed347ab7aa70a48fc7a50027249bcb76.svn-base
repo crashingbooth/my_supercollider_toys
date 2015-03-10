@@ -1,0 +1,7 @@
+(
+// a must:
+	\name: 		"MOSCion",
+	\path: 		"MOSCion",
+	\summary:	"Control for the reading data values from the iOS app MOSCion",
+	\author: 		"Joshua Parmenter"
+)

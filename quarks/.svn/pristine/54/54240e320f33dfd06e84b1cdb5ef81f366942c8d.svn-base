@@ -1,0 +1,11 @@
+(
+\name: "Colliding",
+\path: "Colliding",
+\summary: "A simple SuperCollider environment for learning and live coding",
+\author: "Gerard Roma",
+\organization:  "",
+\version: 0.7,
+\dependencies: ["TabbedView2","Freesound2"],
+\ext_dependancy: "curl",
+\helpdoc:	""
+)

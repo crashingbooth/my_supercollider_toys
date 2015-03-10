@@ -39,9 +39,13 @@ ModalPiano : ModalInstrument{
 		// make sure chord is set before this point
 		var outPattern= [], remainder, currentDur;
 		// downbeat
-		remainder = 1;
+
+		//for the first session
+		outPattern=outPattern.add([this.getCharNoteBlockChord, 5/3]);
+		outPattern=outPattern.add([this.getRootBlockChord, 19/3]);
+		/*remainder = 1;
 		if (this.newChord || (4.rand == 0), {
-			currentDur = [0.5,1].choose;
+			currentDur = 5/3;
 			remainder = remainder - currentDur;
 			outPattern = outPattern.add([this.getCharNoteBlockChord, currentDur]);});
 
@@ -71,16 +75,14 @@ ModalPiano : ModalInstrument{
 		if (6.rand == 0,
 			{ currentDur = [0.5,1].choose; remainder = remainder - currentDur;
 			  outPattern = outPattern.add([this.getRootBlockChord, currentDur]) });
-		outPattern = outPattern.add([\rest, remainder]);
+		outPattern = outPattern.add([\rest, remainder]);*/
 
 		^outPattern;
-
-
 	}
 
 	getCharNoteBlockChord {
 		var bottomNote, outArr = [], converted = [], root = this.octaveSize;
-		bottomNote = (4.rand * -2) + this.charNote;
+		bottomNote = (4.rand * -2) + this.charNote + 12;
 		outArr = Array.fill(4, {|i| bottomNote + (2*i)});
 		if (outArr.includes(root) == false, {outArr = outArr.add(root)});
 		outArr.do { |val| converted = converted.add(ModalInstrument.getRealPitch(val, this.scale, this.root))};
@@ -89,7 +91,7 @@ ModalPiano : ModalInstrument{
 	getRootBlockChord {
 		var outArr = [0,2,4,6], converted;
 		//add inversions later
-		outArr.do { |val| converted = converted.add(ModalInstrument.getRealPitch(val, this.scale, this.root))};
+		outArr.do { |val| converted = converted.add(ModalInstrument.getRealPitch(val, this.scale, this.root + 12))};
 		2.rand.do {|i| converted[i] = converted[i] + 12;};
 		^converted;
 
